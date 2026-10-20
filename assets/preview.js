@@ -60,6 +60,14 @@ const units = [
         materials: ['Principles reference sheet', 'Scenario set', 'Government structure diagram'],
         differentiation: 'Model one scenario before independent work; offer a multi-principle scenario for extension.',
         assessment: 'Identify a constitutional principle in a new scenario and explain the connection.' },
+      { title: 'Stories of September 11, 2001', duration: 50,
+        objective: 'Use age-appropriate accounts to explain how people experienced September 11, 2001, and how communities responded with care and public service.',
+        guidingQuestion: 'How can listening to individual stories help us remember a shared civic event with care?',
+        standard: 'CIVIC.1', standardText: 'Consider perspectives and civic responses to a historical event. Fictional sample curriculum standard.',
+        activities: 'Establish respectful discussion norms and briefly locate the events in time. Read teacher-created, non-graphic accounts of a family member, a first responder, and a community volunteer. Identify perspective and evidence, then discuss remembrance and service. Offer a quiet written alternative to discussion.',
+        materials: ['Teacher-created remembrance accounts', 'Historical context timeline', 'Perspective and evidence organizer'],
+        differentiation: 'Preview sensitive content, avoid graphic imagery, and offer a private reflection or an alternative civic-service text. Provide vocabulary and structured discussion prompts; do not ask students to disclose personal experiences.',
+        assessment: 'Write a brief reflection using evidence from two accounts to explain one way communities remember and support one another. Assess perspective-taking and evidence, not personal feelings.' },
       { title: 'The Ratification Debate', duration: 50,
         objective: 'Compare arguments for and against ratification using short, adapted source excerpts.',
         guidingQuestion: 'Why did people disagree about the proposed Constitution?',
@@ -104,11 +112,11 @@ const units = [
 ];
 
   const unitIds = ['unit-foundations', 'unit-constitution', 'unit-branches'];
-  const lessonIds = ['lesson-government', 'lesson-systems', 'lesson-public-good', 'lesson-framework', 'lesson-principles', 'lesson-ratification', 'lesson-laws', 'lesson-executive', 'lesson-courts'];
-  const baselineDates = [['2026-09-01'], ['2026-09-02'], ['2026-09-03'], ['2026-09-08'], ['2026-09-09', '2026-09-10'], ['2026-09-11'], ['2026-09-14'], ['2026-09-15'], ['2026-09-16']];
+  const lessonIds = ['lesson-government', 'lesson-systems', 'lesson-public-good', 'lesson-framework', 'lesson-principles', 'lesson-september-11-stories', 'lesson-ratification', 'lesson-laws', 'lesson-executive', 'lesson-courts'];
+  const baselineDates = [['2026-09-01'], ['2026-09-02'], ['2026-09-03'], ['2026-09-08'], ['2026-09-09', '2026-09-10'], ['2026-09-11'], ['2026-09-14'], ['2026-09-15'], ['2026-09-16'], ['2026-09-18']];
   const unitFields = [
     { targetDays: 3, understandings: 'Governments make collective decisions. Authority and individual rights can be in tension.', outcomes: 'Compare political systems; explain the public good; support a civic claim with evidence.', assessment: 'A short community-budget proposal provides evidence of reasoning about public priorities.', formative: 'Scenario sorts, discussion notes, and a claim with one supporting example.', vocabulary: 'Authority, legitimacy, rights, public good.', supports: 'Begin with familiar community rules. Address the misconception that government is only a national institution. Offer visual vocabulary and sentence frames.', texts: 'Fictional town budget; teacher-created community scenarios.', notes: 'Keep examples fictional and invite more than one defensible perspective.' },
-    { targetDays: 4, understandings: 'Constitutional structures respond to problems of power, representation, and accountability.', outcomes: 'Explain the need for a new framework; apply constitutional principles; compare ratification arguments.', assessment: 'The Ratification Debate is the linked assessment lesson, pinned to September 11 in the sample calendar.', formative: 'Problem-solution organizer, principle-to-scenario explanations, and source annotations.', vocabulary: 'Federalism, ratification, checks and balances.', supports: 'Review the Articles of Confederation. Distinguish separation of powers from federalism. Provide glossed excerpts and model one evidence-based claim.', texts: 'Adapted fictional debate excerpts; constitutional-principles reference sheet.', notes: 'Principles in Practice spans two instructional days. The linked debate uses one day.' },
+    { targetDays: 5, understandings: 'Constitutional structures respond to problems of power, representation, and accountability.', outcomes: 'Explain the need for a new framework; apply constitutional principles; compare ratification arguments.', assessment: 'The Ratification Debate is the linked assessment lesson, scheduled September 14. The September 11 civic remembrance lesson has its own protected date.', formative: 'Problem-solution organizer, principle-to-scenario explanations, and source annotations.', vocabulary: 'Federalism, ratification, checks and balances.', supports: 'Review the Articles of Confederation. Distinguish separation of powers from federalism. Provide glossed excerpts and model one evidence-based claim.', texts: 'Adapted fictional debate excerpts; constitutional-principles reference sheet.', notes: 'Principles in Practice spans two instructional days. The remembrance lesson and linked debate each use one day.' },
     { targetDays: 4, understandings: 'Separate institutions share responsibility and place limits on one another.', outcomes: 'Trace a bill; distinguish executive responsibilities; explain judicial reasoning.', assessment: 'An explanatory branch-interaction map is a unit assessment idea; it is not an extra scheduled event.', formative: 'Bill-pathway annotations, responsibility sort, and a short fictional court decision.', vocabulary: 'Legislation, implementation, judicial review.', supports: 'Revisit checks and balances. Address the idea that one branch acts alone. Offer a partially completed flowchart and structured reasoning frames.', texts: 'Fictional bill cards; executive-role guide; fictional case brief.', notes: 'Three lesson days are planned against a four-day target. The variance is visible; no extra day is silently scheduled.' }
   ];
   let index = 0;
@@ -119,8 +127,8 @@ const units = [
       Object.assign(lesson, {
         id: lessonIds[index], unitId: unit.id, order: index + 1,
         dates: [...baselineDates[index]], baselineDates: [...baselineDates[index]],
-        type: index === 5 ? 'Assessment' : index === 4 ? 'Workshop' : 'Lesson',
-        status: index < 3 ? 'Ready' : 'Draft', pinned: index === 5, preference: null,
+        type: index === 5 ? 'Special Lesson' : index === 6 ? 'Assessment' : index === 4 ? 'Workshop' : 'Lesson',
+        status: index < 3 ? 'Ready' : [7, 8].includes(index) ? 'In Progress' : 'Draft', pinned: index === 5, preference: null,
         baseTemplate: 'connected', templateOverride: null,
         homework: 'Optional: revisit the lesson question and add one example.',
         notes: 'Fictional planning notes. Adapt the examples to the discussion.',
@@ -140,6 +148,12 @@ const units = [
   };
 }
 const course = createSampleCourse();
+// These are independent, disposable scheduling scenarios, not cumulative edits.
+// Only scheduling fields are replaced on confirmation; authored planning stays intact.
+const scheduleBaseline = {
+  rows: course.lessons.map(lesson => ({ id: lesson.id, dates: [...lesson.dates], pinned: lesson.pinned, preference: lesson.preference })),
+  rules: course.rules.map(rule => ({ ...rule }))
+};
 const state = {
   workspace: 'sequence', sequenceView: 'table', unitFilter: 'all', unitId: course.units[0].id,
   lessonId: course.lessons[0].id, search: '', calendarView: 'month', month: '2026-09', day: '2026-09-14',
@@ -185,7 +199,7 @@ function renderSequence() {
   const selectedUnits = course.units.filter(unit => state.unitFilter === 'all' || unit.id === state.unitFilter);
   const filters = `<div class="cp-unit-filters" role="group" aria-label="Filter course lessons">${button('All Units', `data-filter="all" aria-pressed="${state.unitFilter === 'all'}"`)}${course.units.map(unit => `<button type="button" class="cp-unit-filter" style="${unitStyle(unit.id)}" data-filter="${unit.id}" aria-pressed="${state.unitFilter === unit.id}"><span class="cp-color-dot"></span><span>${h(unit.title)}<small>${unitLessons(unit.id).length} lessons</small></span></button>`).join('')}</div>`;
   const controls = `<div class="cp-toolbar cp-sequence-toolbar"><label class="cp-field cp-search"><span class="cp-search-label">Find a lesson</span><input id="sequence-search" type="search" placeholder="Search lessons" value="${h(state.search)}"></label><div class="cp-segment" aria-label="Course Sequence presentation">${['table', 'board'].map(view => button(view === 'table' ? 'Table' : 'Board', `data-sequence-view="${view}" aria-pressed="${state.sequenceView === view}"`)).join('')}</div></div><p class="cp-muted cp-scope">Showing ${lessons.length} of ${course.lessons.length} lessons · ${state.unitFilter === 'all' ? 'All units' : h(currentFilterUnit().title)}${state.search ? ' · Search active' : ''}</p>`;
-  const statusSelect = lesson => `<select data-status="${lesson.id}" aria-label="Planning status: ${h(lesson.title)}">${options(['Draft', 'In progress', 'Ready'], lesson.status)}</select>`;
+  const statusSelect = lesson => `<select data-status="${lesson.id}" aria-label="Planning status: ${h(lesson.title)}">${options(['Draft', 'In Progress', 'Ready'], lesson.status)}</select>`;
   let content;
   if (state.sequenceView === 'table') {
     content = `<table class="cp-table"><caption class="sr-only">Course-wide master lesson record. Status edits are disposable sample changes.</caption><thead><tr><th scope="col">#</th><th scope="col">Lesson title</th><th scope="col">Type</th><th scope="col">Planning status</th><th scope="col">Scheduled</th></tr></thead>${selectedUnits.map(unit => {
@@ -280,7 +294,7 @@ function renderCalendar() {
   return `<div class="cp-toolbar"><div class="cp-calendar-nav">${button('←', 'data-period="-1" aria-label="Previous calendar period"')}<h5>${dateLabel(first, { month: 'long', year: 'numeric' })}</h5>${button('→', 'data-period="1" aria-label="Next calendar period"')}</div><div class="cp-segment" aria-label="Calendar presentation">${['month', 'week'].map(view => button(view === 'month' ? 'Month' : 'Week', `data-calendar-view="${view}" aria-pressed="${state.calendarView === view}"`)).join('')}</div></div>
   <p class="cp-calendar-legend">• Lesson &nbsp; ◎ Assessment &nbsp; × Closure &nbsp; ! Exception &nbsp; ◇ Flex &nbsp; ◆ Pinned<br><span class="cp-muted">Unit colors identify the curriculum. Symbols and labels identify event types.</span></p>
   <div class="cp-calendar-layout">${calendar}${dayDetail()}</div>
-  <section class="cp-scenario"><div><span class="cp-eyebrow">SCRIPTED SCHEDULE EXAMPLE</span><h5>What changes when a lesson moves?</h5><p>Try moving “Making the Laws” to Sep 15. Its two following lessons move forward in order, around the Sep 17 testing block. The Sep 11 assessment stays pinned.</p></div><div class="cp-actions">${button('Preview Flexible Move', 'data-schedule="flexible"')}${button('Preview Pin to Date', 'data-schedule="pin"')}${button('Preview new closure & recalculation', 'data-schedule="recalculate"')}</div><p class="cp-muted">Flexible Move is a preference. Pin to Date is a protected commitment. Recalculation adds a fictional Sep 15 closure to demonstrate the difference. This is a bounded example, not a production scheduling engine.</p></section>`;
+  <section class="cp-scenario"><div><span class="cp-eyebrow">SCRIPTED SCHEDULE EXAMPLE</span><h5>What changes when a lesson moves?</h5><p>Try moving “Making the Laws” from Sep 15 to Sep 16. Its two following lessons move forward in order, around the Sep 17 testing block. “Stories of September 11, 2001” stays pinned to Sep 11; Ratification Debate stays on Sep 14.</p></div><div class="cp-actions">${button('Preview Flexible Move', 'data-schedule="flexible"')}${button('Preview Pin to Date', 'data-schedule="pin"')}${button('Preview new closure & recalculation', 'data-schedule="recalculate"')}</div><p class="cp-muted">Each preview starts a separate example from the initial sample schedule. Confirm replaces earlier demo schedule changes, while keeping your planning edits. Flexible Move is a preference; Pin to Date is protected. The closure example starts with a flexible Sep 16 preference and closes that day. This is a bounded demonstration, not a production scheduling engine.</p></section>`;
 }
 function renderCustomization() {
   const unit = currentUnit();
@@ -314,32 +328,40 @@ function navigate(workspace, lessonId, unitId) {
   render('#workspace-label', true);
   announce(`${workspaceInfo[workspace][0]} opened.`);
 }
-// All scheduling proposals are pure: no records or rules change until Confirm.
-function makeScheduleProposal(action) {
-  const extraClosure = { id: 'rule-demo-closure', date: '2026-09-15', type: 'Closure', label: 'New sample closure', detail: 'Added only after confirming the scripted recalculation.', unavailable: true };
-  const rules = course.rules.map(rule => ({ ...rule }));
-  if (action === 'recalculate' && !rules.some(rule => rule.id === extraClosure.id)) rules.push(extraClosure);
-  const rows = course.lessons.map(lesson => ({ id: lesson.id, dates: [...lesson.dates], pinned: lesson.pinned, preference: lesson.preference }));
-  const mover = rows.find(row => row.id === 'lesson-laws');
-  if (action === 'flexible') { mover.pinned = false; mover.preference = '2026-09-15'; }
-  if (action === 'pin') { mover.pinned = true; mover.preference = null; mover.dates = ['2026-09-15']; }
+// Pure bounded recalculation: closures block instruction; pins never move or disappear.
+function calculateSchedule(rows, rules) {
+  rows = rows.map(row => ({ ...row, dates: [...row.dates] }));
   const conflicts = [];
   const blocked = date => [0, 6].includes(asDate(date).getUTCDay()) || rules.some(rule => rule.date === date && rule.unavailable);
-  let cursor = '2026-09-14';
+  let cursor = '2026-09-15';
   for (const row of rows.filter(row => ['lesson-laws', 'lesson-executive', 'lesson-courts'].includes(row.id))) {
     if (row.pinned) {
-      const date = row.dates[0];
-      if (blocked(date)) conflicts.push(`${lessonById(row.id).title} is pinned to ${dateLabel(date)}, which is blocked. Cancel this proposal; it cannot overwrite the pin or closure.`);
-      if (date < cursor) conflicts.push('The protected date conflicts with the course lesson order. No changes can be applied.');
-      cursor = addDays(date, 1);
+      if (row.dates[0] < cursor) conflicts.push('The protected date conflicts with the course lesson order. No changes can be applied.');
+      cursor = addDays(row.dates.at(-1), 1);
     } else {
       let date = row.preference && row.preference > cursor ? row.preference : cursor;
       while (blocked(date)) date = addDays(date, 1);
       row.dates = [date]; cursor = addDays(date, 1);
     }
   }
-  const affected = rows.filter(row => { const old = lessonById(row.id); return old.dates.join() !== row.dates.join() || old.pinned !== row.pinned || old.preference !== row.preference || (row.pinned && rules.some(rule => rule.date === row.dates[0] && rule.unavailable)); });
-  return { type: 'schedule', action, rows, rules, affected, conflicts };
+  // Validate every illustrated assignment, including protected lessons outside the tail.
+  for (const row of rows) {
+    if (row.dates.some(blocked)) conflicts.push(`${lessonById(row.id).title} ${row.pinned ? 'is pinned to' : 'is assigned to'} a blocked day. Cancel this proposal; it cannot overwrite a pin or closure.`);
+  }
+  return { rows, conflicts };
+}
+// Proposals start from a fixture, never from a previous demo's pin or closure.
+// The optional fixture also lets verification exercise deliberate protected-pin conflicts.
+function makeScheduleProposal(action, baseline = scheduleBaseline) {
+  const rules = baseline.rules.map(rule => ({ ...rule }));
+  if (action === 'recalculate') rules.push({ id: 'rule-demo-closure', date: '2026-09-16', type: 'Closure', label: 'New sample closure', detail: 'Added only after confirming the independent closure example.', unavailable: true });
+  const initialRows = baseline.rows.map(row => ({ ...row, dates: [...row.dates] }));
+  const mover = initialRows.find(row => row.id === 'lesson-laws');
+  if (action === 'pin') { mover.pinned = true; mover.preference = null; mover.dates = ['2026-09-16']; }
+  else if (!mover.pinned) mover.preference = '2026-09-16';
+  const { rows, conflicts } = calculateSchedule(initialRows, rules);
+  const affected = rows.filter(row => { const old = baseline.rows.find(before => before.id === row.id); return old.dates.join() !== row.dates.join() || old.pinned !== row.pinned || old.preference !== row.preference || (row.pinned && rules.some(rule => rule.date === row.dates[0] && rule.unavailable)); });
+  return { type: 'schedule', action, rows, rules, affected, conflicts, before: baseline.rows };
 }
 function openDialog(pending, html) {
   state.pending = pending;
@@ -351,14 +373,15 @@ function openDialog(pending, html) {
   heading.focus({ preventScroll: true });
   dialog.scrollTop = 0;
 }
-function showSchedule(action) {
-  const plan = makeScheduleProposal(action);
+function showSchedule(action, baseline = scheduleBaseline) {
+  const plan = makeScheduleProposal(action, baseline);
   const title = { flexible: 'Preview a flexible date move', pin: 'Preview Pin to Date', recalculate: 'Preview a new closure & recalculation' }[action];
-  openDialog(plan, `<div class="cp-dialog-body cp-schedule-body"><span class="cp-eyebrow">INTERACTIVE SCHEDULE EXAMPLE</span><h4 id="dialog-title">${title}</h4><p class="cp-schedule-lead">${action === 'flexible' ? 'Sep 15 is a flexible preference for Making the Laws. It may move again when the sample schedule changes.' : action === 'pin' ? 'Protect Making the Laws on Sep 15. This pinned commitment stays fixed during recalculation.' : 'Preview a full-day Sep 15 closure. Flexible lessons may move; a protected pin must be resolved first.'}</p>
+  openDialog(plan, `<div class="cp-dialog-body cp-schedule-body"><span class="cp-eyebrow">INTERACTIVE SCHEDULE EXAMPLE</span><h4 id="dialog-title">${title}</h4><p class="cp-schedule-lead">${action === 'flexible' ? 'Sep 16 is a flexible preference for Making the Laws. It may move again when the sample schedule changes.' : action === 'pin' ? 'Protect Making the Laws on Sep 16. This pinned commitment stays fixed during recalculation.' : 'Preview a full-day Sep 16 closure from a flexible preference. Flexible lessons may move; a protected pin must be resolved first.'}</p>
+  <p class="cp-preview-disclosure">Independent example: “Before” shows the initial sample schedule. Confirm replaces any earlier demo pin, closure, or move with this example’s result. Lesson content and planning statuses are preserved.</p>
   <dl class="cp-preview-summary"><div><dt>Affected lessons</dt><dd>${plan.affected.length}</dd></div><div${plan.conflicts.length ? ' class="cp-summary-conflict"' : ''}><dt>Conflicts</dt><dd>${plan.conflicts.length}</dd></div><div><dt>Unscheduled</dt><dd>0</dd></div></dl>
   ${plan.conflicts.length ? `<section class="cp-conflict-section" aria-labelledby="conflicts-title"><h5 id="conflicts-title">Resolve before confirming</h5>${plan.conflicts.map(conflict => `<p class="cp-conflict" role="alert">${h(conflict)}</p>`).join('')}</section>` : ''}
-  <section class="cp-proposed-section" aria-labelledby="proposed-title"><h5 id="proposed-title">Proposed lesson dates</h5><ul class="cp-impact">${plan.affected.map(row => { const old = lessonById(row.id); return `<li><strong>${h(old.title)}</strong><div class="cp-date-comparison"><div><span>Before</span><b>${dateRange(old.dates)}</b></div><span class="cp-date-arrow" aria-hidden="true">→</span><div><span>Proposed</span><b>${dateRange(row.dates)}</b></div></div><small>${row.pinned ? '◆ Protected pin' : row.preference ? `↝ Flexible preference: ${dateLabel(row.preference)}` : 'Follows the course sequence'}${old.pinned && !row.pinned ? ' · Existing pin explicitly removed by Flexible Move' : ''}</small></li>`; }).join('') || '<li>No lesson dates change in this proposal.</li>'}</ul></section>
-  <section class="cp-constraint" aria-labelledby="constraints-title"><h5 id="constraints-title">Protected commitments & teaching days</h5><ul class="cp-fixed-dates">${plan.rows.filter(r => r.pinned).map(r => `<li><span>◆ ${h(lessonById(r.id).title)}</span><strong>${dateRange(r.dates)}</strong></li>`).join('')}</ul><p><strong>Unavailable:</strong> Sep 7 closure · Sep 17 testing block · Sep 4 reserved flex day · weekends.</p><p>Lesson order stays unchanged. The affected lessons use one day each; the earlier two-day workshop stays intact.</p>${action === 'recalculate' ? `<p>${plan.conflicts.length ? 'The proposed Sep 15 closure conflicts with a protected pin. Nothing can be confirmed until that conflict is resolved.' : 'The proposed Sep 15 closure prevents the flexible preference. Lessons move to the next available teaching days.'}</p>` : ''}</section>
+  <section class="cp-proposed-section" aria-labelledby="proposed-title"><h5 id="proposed-title">Proposed lesson dates</h5><ul class="cp-impact">${plan.affected.map(row => { const old = plan.before.find(before => before.id === row.id); return `<li><strong>${h(lessonById(row.id).title)}</strong><div class="cp-date-comparison"><div><span>Before</span><b>${dateRange(old.dates)}</b></div><span class="cp-date-arrow" aria-hidden="true">→</span><div><span>Proposed</span><b>${dateRange(row.dates)}</b></div></div><small>${row.pinned ? '◆ Protected pin' : row.preference ? `↝ Flexible preference: ${dateLabel(row.preference)}` : 'Follows the course sequence'}</small></li>`; }).join('') || '<li>No lesson dates change in this proposal.</li>'}</ul></section>
+  <section class="cp-constraint" aria-labelledby="constraints-title"><h5 id="constraints-title">Protected commitments & teaching days</h5><ul class="cp-fixed-dates">${plan.rows.filter(r => r.pinned).map(r => `<li><span>◆ ${h(lessonById(r.id).title)}</span><strong>${dateRange(r.dates)}</strong></li>`).join('')}</ul><p><strong>Unavailable:</strong> Sep 7 closure · Sep 17 testing block · Sep 4 reserved flex day · weekends.</p><p>Lesson order stays unchanged. The affected lessons use one day each; the earlier two-day workshop stays intact.</p>${action === 'recalculate' ? `<p>${plan.conflicts.length ? 'The proposed Sep 16 closure conflicts with a protected pin. Nothing can be confirmed until that conflict is resolved.' : 'The proposed Sep 16 closure prevents the flexible preference. Lessons move to the next available teaching days.'}</p>` : ''}</section>
   <p class="cp-preview-disclosure">${plan.conflicts.length ? 'Proposal blocked. Cancel to keep the current sample schedule.' : 'Confirm applies these changes to the example only. Sample changes are not saved.'}</p></div><div class="cp-dialog-actions">${button('Cancel', 'data-cancel="true"')}${button('Confirm sample change', `data-confirm="true"${plan.conflicts.length ? ' disabled' : ''}`, 'cp-primary')}</div>`);
 }
 function showTemplateOptions() {
