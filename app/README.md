@@ -13,11 +13,11 @@ This independent application is deployed from the `pilot/app-foundation` branch 
 - The existing **fictional interactive demonstration** remains separate, in-memory and unsaved
 - GitHub CI runs `cd app && node --test tests/*.test.mjs` using the app tests
 
-The browser uses only a public `sb_publishable_` Supabase client key, not a service-role key. Supabase project: `pzipmantttlsbakzrsrm` (currently `us-west-2`). Four DB tables have owner-based RLS; a prior Supabase advisor scan returned zero findings. **Real-user isolation has not yet been independently verified.**
+The browser uses only a public `sb_publishable_` Supabase client key, not a service-role key. Supabase project: `rlyrfbvxpmmfxdpzkyia` (`course-planner-east`, `us-east-1`). Four DB tables have owner-based RLS; the East project security advisor reports zero findings. The original Oregon project is retained temporarily as a rollback reference with no accounts or course records. **Real-user isolation has not yet been independently verified.**
 
 ## Important: this is not yet ready for authentic daily planning
 
-- The Supabase Auth **Site URL and allowed redirect URLs** need to be configured for the dedicated app domain before email sign-in is tested.
+- The **new East Supabase project's** Auth Site URL and allowed redirect URLs need to be configured for the dedicated app development preview before email sign-in is tested. The old project's redirect configuration does not transfer.
 - No real sign-in, saved-record round trip, cross-device reload, dual-account RLS or recovery test has passed.
 - The authenticated planning forms are functional *in code* but have not been browser-tested; the earlier static fictional demo remains unchanged.
 - Scheduling re-computation and transactional closure/pin previews are **not** integrated with the private database. Private Calendar is explicitly read-only.
@@ -27,7 +27,7 @@ The browser uses only a public `sb_publishable_` Supabase client key, not a serv
 
 ## Verification plan
 
-1. In Supabase Dashboard → Authentication → URL Configuration, set Site URL and add exact authorized redirect URL for the selected Vercel app deployment. Avoid wildcard production redirects.
+1. In **course-planner-east** → Authentication → URL Configuration, set Site URL and add exact authorized redirect URL `https://course-planner-app-git-pilot-app-foundation-course-planner.vercel.app/` for the selected Vercel app preview. Avoid wildcard production redirects.
 2. Test a newly created teacher account with email OTP/magic link; create, save, sign out, sign back in, reload the same course on another browser.
 3. Test editing a unit Essential Question and a lesson objective, checking the shared record in Sequence / Unit / Lesson views; test failed network and concurrent update conflict.
 4. Test two independent accounts cannot read or alter each other's courses and children, using RLS access attempts. Verify account/session logout behavior.
