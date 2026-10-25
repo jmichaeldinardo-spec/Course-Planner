@@ -56,3 +56,5 @@
 .pilot-demo-heading h2{font-size:1.2rem;margin:0 0 4px}
 .pilot-demo-heading p{color:#b8c3d3}
 @media(max-width:760px){.private-workspace{padding:14px}.private-header{display:block}.private-form-grid{grid-template-columns:1fr}.private-nav button{flex:1}.private-table{min-width:560px}}
+
+[hidden]{display:none!important}
