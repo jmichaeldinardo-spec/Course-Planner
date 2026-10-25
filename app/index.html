@@ -46,11 +46,13 @@
   <main id="main" class="pilot-main">
     <section class="pilot-auth" aria-label="Private course account"><div><h2>Private course workspace</h2><p id="auth-status" role="status">Checking sign-in…</p></div><form id="auth-form"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"><button type="submit">Email me a sign-in link</button></form><button id="auth-signout" type="button" hidden>Sign out</button></section>
     <section class="pilot-storage" aria-label="Private saved course"><h2>Saved courses</h2><p id="storage-status" role="status">Sign in to access private saved courses. The demonstration below is not saved.</p><form id="course-form" hidden><label for="course-name">Course name</label><input id="course-name" maxlength="180" required placeholder="My Government Course"><button type="submit">Create saved course</button></form><ul id="saved-courses"></ul></section>
+    <section id="private-workspace" class="private-workspace" aria-label="Saved curriculum planning" hidden></section>
+    <section class="pilot-demo-heading" aria-label="Fictional demonstration"><h2>Illustrative demo — not saved</h2><p>This separate sample is still browser-memory only. Use your signed-in private course workspace above for saved work.</p></section>
     <section class="pilot-overview" aria-labelledby="pilot-title">
       <div>
         <p class="pilot-kicker">COURSE PLANNER · PILOT WORKSPACE</p>
         <h1 id="pilot-title">Plan one course. Keep every view connected.</h1>
-        <p>This page is an isolated application development preview using fictional curriculum. Changes are temporary and disappear on reload. <strong>No account, cloud saving, or school data connection exists yet.</strong></p>
+        <p>The demonstration below uses fictional curriculum. Its changes disappear on reload. Your signed-in private course editor above saves real course records separately; its scheduling engine is still in development.</p>
       </div>
       <div class="pilot-preview-context" aria-label="Example course context">
         <span class="sequence-strips" aria-hidden="true"></span>

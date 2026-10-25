@@ -23,3 +23,36 @@
 @media(max-width:760px){.pilot-header-inner{padding:14px}.pilot-label{display:none}.pilot-main{padding:14px}.pilot-overview{display:block}.pilot-preview-context{max-width:none;margin-top:16px}.pilot-options{display:block}.pilot-options-content{margin-top:18px}.pilot-brand-sub{font-size:.7rem}.pilot-main>.cp-demo{min-height:unset}}
 
 .pilot-auth,.pilot-storage{display:flex;align-items:flex-start;gap:18px;justify-content:space-between;border:1px solid #394354;border-radius:12px;background:#1b2230;padding:16px 20px;margin:0 0 18px}.pilot-auth h2,.pilot-storage h2{margin:0 0 7px;font-size:1rem}.pilot-auth p,.pilot-storage p{margin:0;color:#bdc6d6;font-size:.85rem}.pilot-auth form,.pilot-storage form{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pilot-auth label,.pilot-storage label{font-size:.85rem}.pilot-auth input,.pilot-storage input{border:1px solid #60708c;background:#101723;color:#fff;padding:9px;border-radius:7px}.pilot-auth button,.pilot-storage button{border:0;background:#bdc9ff;color:#10131b;padding:9px 12px;border-radius:7px;cursor:pointer;font-weight:600}.pilot-auth button:disabled,.pilot-storage button:disabled{opacity:.6;cursor:wait}#saved-courses{margin:0;list-style:none;padding:0;font-size:.85rem}#saved-courses li{margin:4px 0}#saved-courses button{margin-left:8px;background:#273952;color:#fff}@media(max-width:760px){.pilot-auth,.pilot-storage{display:block}.pilot-auth form,.pilot-storage form{margin-top:12px}}
+.private-workspace{background:#1a2230;border:1px solid #54627d;border-radius:14px;padding:22px;margin:0 0 22px}
+.private-workspace[hidden]{display:none}
+.private-header{display:flex;justify-content:space-between;align-items:start;gap:18px}
+.private-header h2{font-size:1.5rem;margin:4px 0}
+.private-header p{margin:4px 0;color:#bdc9db}
+.private-kicker{font-size:.72rem!important;letter-spacing:.12em;color:#b9afff!important;font-weight:700}
+.private-workspace button[type=submit],.private-workspace button[data-private-export],.private-workspace button[data-private-lesson]{background:#bdc9ff;color:#181b2b;border:0;border-radius:7px;padding:9px 13px;cursor:pointer;font-weight:650}
+.private-nav{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0;border-bottom:1px solid #526078;padding-bottom:16px}
+.private-nav button{background:#293349;border:1px solid #465471;color:#e6eaf5;border-radius:8px;padding:10px 13px;cursor:pointer}
+.private-nav button[aria-pressed=true]{background:#bdc9ff;color:#171a25}
+#private-status{border-left:3px solid #8ea0bd;padding:9px 12px;background:#232d40;min-height:22px}
+#private-status[data-kind=saved]{border-color:#65c6a2}
+#private-status[data-kind=pending]{border-color:#edc474}
+#private-status[data-kind=error]{border-color:#f08b87}
+.private-content p{font-size:.91rem;color:#c2cadd;line-height:1.5}
+.private-content h3{font-size:1.05rem;margin:22px 0 8px}
+.private-editor,.private-new-form{margin:18px 0;padding:15px;border:1px solid #3e506b;border-radius:9px}
+.private-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:16px 0}
+.private-field,.private-new-form label{display:flex;flex-direction:column;gap:6px;font-size:.84rem;font-weight:600}
+.private-field input,.private-field select,.private-field textarea,.private-new-form input,.private-new-form select{box-sizing:border-box;width:100%;background:#121b2a;color:#f5f6ff;border:1px solid #63708b;border-radius:7px;padding:9px 10px;font:inherit;font-weight:400}
+.private-field textarea{min-height:78px;resize:vertical}
+.private-content summary{padding:11px;cursor:pointer;color:#dce2fc;font-weight:600}
+.private-content details[open]>summary{border-bottom:1px solid #3f4c67}
+.private-table-wrap{overflow-x:auto}
+.private-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.private-table td,.private-table th{text-align:left;border-bottom:1px solid #35445e;padding:10px}
+.private-table th{color:#b7c8e1}
+.private-context{border:1px solid #4e607a;padding:13px;border-radius:9px}
+.private-warning{border-left:3px solid #dcab63;padding:12px;background:#302b26}
+.pilot-demo-heading{margin:28px 0 6px;border-top:1px solid #354357;padding-top:18px}
+.pilot-demo-heading h2{font-size:1.2rem;margin:0 0 4px}
+.pilot-demo-heading p{color:#b8c3d3}
+@media(max-width:760px){.private-workspace{padding:14px}.private-header{display:block}.private-form-grid{grid-template-columns:1fr}.private-nav button{flex:1}.private-table{min-width:560px}}
