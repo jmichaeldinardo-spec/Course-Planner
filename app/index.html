@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="assets/demo.css">
   <link rel="stylesheet" href="app.css">
   <script defer src="assets/preview.js"></script>
+  <script type="module" src="auth.js"></script>
 </head>
 <body class="pilot-app-page">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -43,6 +44,8 @@
     </div>
   </header>
   <main id="main" class="pilot-main">
+    <section class="pilot-auth" aria-label="Private course account"><div><h2>Private course workspace</h2><p id="auth-status" role="status">Checking sign-in…</p></div><form id="auth-form"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"><button type="submit">Email me a sign-in link</button></form><button id="auth-signout" type="button" hidden>Sign out</button></section>
+    <section class="pilot-storage" aria-label="Private saved course"><h2>Saved courses</h2><p id="storage-status" role="status">Sign in to access private saved courses. The demonstration below is not saved.</p><form id="course-form" hidden><label for="course-name">Course name</label><input id="course-name" maxlength="180" required placeholder="My Government Course"><button type="submit">Create saved course</button></form><ul id="saved-courses"></ul></section>
     <section class="pilot-overview" aria-labelledby="pilot-title">
       <div>
         <p class="pilot-kicker">COURSE PLANNER · PILOT WORKSPACE</p>

@@ -1,22 +1,11 @@
-# Course Planner /app — isolated application preview
+# Course Planner — authentication and persistence integration (in progress)
 
-Status: **separate static development page** on `pilot/app-foundation`. It is NOT the authenticated/persistent teacher pilot.
+This branch adds Supabase passwordless sign-in and a private saved-course list. It is a **partial vertical slice**, not full Course Planner persistence: the existing fictional Course Sequence, Unit Planning, Lesson Planning, and Calendar demonstration is still in-memory and resets on reload. Only newly created course *names* are saved to the database.
 
-- Marketing site remains in the existing repository root and stays unchanged.
-- The standalone app uses the existing fictitious interactive course preview's **identical** `preview.js`, `styles.css`, and `demo.css` assets, copied as Git blobs so they can deploy independently with Vercel Root Directory `app`.
-- Reuses the existing shared-record views and demo scenario mechanics while removing the marketing sections. Do not treat the client-side demonstration as a production-ready scheduler.
-- All changes are browser-memory only and reset on reload. There are no saved accounts, database, mailing list, cloud backups, or school-data connections.
-- The Sprint 1 independent domain-model experiment is a separate reference and has **not yet been integrated** with these demo records. Do not create a second authoritative lesson database.
-- The current marketing Vercel project is separate from the app. **Never repoint its root directory or production branch to this folder.**
+Supabase project: pzipmantttlsbakzrsrm; only a publishable browser key is used. RLS on all tables is mandatory. No school data or teacher records have been imported.
 
-Local check: `python3 -m http.server 8000` from the repository root; visit `http://127.0.0.1:8000/app/`.
-Static test: `cd app && npm test`. Browser integration and the 265-assertion demo regression suite must also be rerun before production launch.
+**Before login can work**, configure Supabase Auth URL Configuration with the deployed app URL as an allowed redirect URL, and review the Site URL, OTP settings, and email delivery limits. This is a prerequisite for testing email sign-in. Do not disable RLS or place service_role credentials in the client.
 
-## Next gates
+**Verification gates:** live email sign-in, create saved course, close/reopen on another browser, verify unauthorized users cannot read it, then integrate real units/lessons and calendar with save/recovery, exports and backups. Do not retire the spreadsheet yet.
 
-1. Compare the current shared demo record structure to the tested Sprint 1 domain model and canonical V2.2 workbook.
-2. Add authenticated hosted storage, recovery, explicit pending/saved/error UI; verify a teacher can save, close, reopen and edit across two browser sessions.
-3. Verify dates, stable IDs, partial-duration lessons, protected pins, exceptions and all relevant scheduling behavior against the workbook.
-4. Build export and import, then recruit first users. Do not use real student information.
-
-This app directory is suitable for a **separate Vercel project rooted at `app`**, but publishing it is a distinct operation.
+The marketing website is not modified. Do not merge this branch to main or import real curriculum before the gates pass.
