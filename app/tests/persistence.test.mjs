@@ -16,7 +16,7 @@ test("private workspace is accessible independently of the fictional demonstrati
  assert.match(app,/data is still in development|scheduling engine is still in development/);
 });
 test("no privileged Supabase key embedded in browser code",()=>{
- for(const src of [auth,workspace,config]){assert.doesNotMatch(src,/sb_secret_|service_role|postgres:\\/\\//);}
+ for(const src of [auth,workspace,config]){assert.doesNotMatch(src,/sb_secret_|service_role/);assert.equal(src.includes("postgres://"),false);}
  assert.match(config,/sb_publishable_/);
 });
 test("real writes target canonical lesson and unit tables with revision check",()=>{
