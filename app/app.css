@@ -1,0 +1,23 @@
+/* Isolated app-page layout; original demo styles and scripts remain unchanged. */
+.pilot-app-page{background:#10131b;min-height:100vh;color:#f0f1f6}
+.pilot-header{border-bottom:1px solid #313642;background:#141821}
+.pilot-header-inner{max-width:1560px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.pilot-brand{color:#f5f5fb;font-weight:800;letter-spacing:-.03em;text-decoration:none;font-size:1.2rem}
+.pilot-brand-sub{font-weight:500;font-size:.81rem;margin-left:10px;color:#b8bfd1;letter-spacing:0}
+.pilot-label{font-size:.78rem;color:#b0c3e5;border:1px solid #485570;border-radius:50px;padding:7px 12px}
+.pilot-main{max-width:1560px;padding:24px;margin:0 auto}
+.pilot-overview{display:flex;align-items:center;justify-content:space-between;gap:32px;padding:4px 0 22px}
+.pilot-overview h1{font-size:clamp(1.5rem,2.6vw,2.15rem);letter-spacing:-.035em;line-height:1.15;margin:6px 0 12px}
+.pilot-overview p{font-size:.94rem;line-height:1.6;max-width:780px;color:#b8bfd1;margin:0}
+.pilot-kicker{font-size:.72rem!important;font-weight:800!important;letter-spacing:.15em;color:#a69eff!important}
+.pilot-preview-context{border:1px solid #30384a;border-radius:12px;min-width:235px;max-width:260px;padding:14px;display:flex;flex-direction:column;gap:7px;font-size:.9rem;background:#1a1e29}
+.pilot-context-caption{color:#9ea9bc;font-size:.72rem}
+.pilot-preview-context .sequence-strips{display:flex;gap:5px;min-height:6px}
+.pilot-preview-context .sequence-strips i{width:24px;height:6px;border-radius:5px;display:inline-block}
+.pilot-options{margin-top:24px;background:#1a1e29;padding:22px;border:1px solid #343d50;border-radius:14px;display:grid;grid-template-columns:minmax(200px,1fr) minmax(260px,2fr);gap:20px}
+.pilot-options h2{font-size:1.1rem;margin:0 0 8px}
+.pilot-options p{color:#aeb7c7;font-size:.88rem}
+.pilot-options-content{max-width:680px}
+.pilot-footer{max-width:1560px;margin:0 auto;padding:16px 24px 34px;color:#9aa5b9;font-size:.78rem}
+.pilot-main>.cp-demo{width:100%;max-width:none;margin:0;min-height:630px}
+@media(max-width:760px){.pilot-header-inner{padding:14px}.pilot-label{display:none}.pilot-main{padding:14px}.pilot-overview{display:block}.pilot-preview-context{max-width:none;margin-top:16px}.pilot-options{display:block}.pilot-options-content{margin-top:18px}.pilot-brand-sub{font-size:.7rem}.pilot-main>.cp-demo{min-height:unset}}
