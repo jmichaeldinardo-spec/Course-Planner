@@ -46,6 +46,7 @@ function setDirty(next){dirty=next;if(next)status("Unsaved changes — select Sa
 function reset(){epoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
+export function isPrivateWorkspaceDirty(){return dirty;}
 export async function openPrivateCourse(client,user,id){
  if(!uuidRE.test(id))throw new Error("Invalid course ID.");
  const call=++epoch;api=client;owner=user;root.hidden=false;root.innerHTML='<p role="status">Loading your saved course…</p>';
