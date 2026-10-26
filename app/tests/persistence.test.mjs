@@ -100,3 +100,14 @@ test("dirty drafts are preserved by auth refresh and require explicit discard",(
  assert.match(workspace,/\.eq\("revision",record\.revision\)/);
  assert.match(auth,/discardUnsaved:true/);
 });
+
+test("restore form calls transactional RPC and does not overwrite current course",()=>{
+ assert.match(app,/id="restore-form"/);
+ assert.match(app,/id="restore-file"/);
+ assert.match(app,/Restore as new course/);
+ assert.match(auth,/client\.rpc\("restore_course_export",\{p_export:json\}\)/);
+ assert.match(auth,/json\.schema!=="course-planner\.pilot-export\.v1"/);
+ assert.match(auth,/new Set\(json\.units\.map/);
+ assert.match(auth,/Existing courses were not changed/);
+ assert.doesNotMatch(auth,/\.from\("courses"\)\.upsert/);
+});
