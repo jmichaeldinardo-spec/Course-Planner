@@ -178,7 +178,36 @@ no scheduling Apply action and zero mock REST/RPC writes. Full automated coverag
 still includes archived records, JSON restore, ZIP/hash and authoring conflicts.
 Evidence is in Git-excluded `app/reviews/calendar-event-effect-preview/review-correction/`.
 
-Hosted read-only acceptance: pending exact PR-preview sign-in and the updated
-branch deployment. The initial sign-in attempt reached the foundation preview;
-the exact PR #4 origin remained signed out. No authentication state was copied
-between origins, and no redirect configuration was changed.
+### Hosted signed-in acceptance — pending
+
+The corrected application code is pushed at
+`b2ec75cd63edd01c709f406ff9c8758a66f68385`. GitHub `app-tests` and the Vercel
+`course-planner-app` preview check succeeded on that head. The branch preview URL is
+https://course-planner-app-git-pilot-calendar-eve-018d2d-course-planner.vercel.app/ .
+
+The initial email sign-in reached the foundation preview; the exact PR #4 origin
+remained signed out after reload. A read-only inspection showed only foundation
+and PR #2 in the Auth redirect allowlist at that time. No authentication state was
+copied between origins and no redirect configuration was changed. The user then
+confirmed the PR URL and reported Supabase's email rate limit. At the user's
+request, further authenticated testing is deferred until the limit resets. A
+successful local fixture test or foundation login is not hosted PR acceptance.
+
+Resume by verifying the exact PR redirect is permitted, then use a fresh email
+link on the designated collaboration account after the rate limit resets. Recheck
+that the actual PR origin shows Saved courses before opening the existing fictional
+80-lesson course. Preview only: Keep on an instructional date, bounded Move before
+the incomplete boundary, protected commitments, missing-date disclosure,
+Cancel/Escape, same-ID navigation and Month/Week; compare saved records/revisions
+before and after. Do not restore the complete fixture or write any live schedule.
+The fully scheduled 80-lesson success is demonstrated locally, not claimed live.
+
+SELECT-only owner-scoped read transactions before and after local verification
+returned identical full-record signatures for the course, units, 80 lessons and
+calendar events. This verifies those records were unchanged; it does not complete
+the pending hosted UI acceptance. Aggregate evidence is Git-excluded in
+`review-correction/read-only-verification.json`.
+
+The PR remains draft against `pilot/app-foundation`. No Phase 2B, schema or data
+writes, Auth changes, merge or production promotion were performed in this review
+correction. The pending hosted test is the remaining acceptance limitation.
