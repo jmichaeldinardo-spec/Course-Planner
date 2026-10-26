@@ -13,7 +13,7 @@ import {scheduleFixture,fullyScheduled80Fixture,id as previewId} from './fixture
 const require=createRequire(import.meta.url);
 const {chromium}=require('playwright');
 const app=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const out=resolve(app,'reviews/calendar-event-effect-preview/review-correction');await mkdir(out,{recursive:true});
+const out=resolve(app,'reviews/calendar-event-effect-preview/hosted-acceptance');await mkdir(out,{recursive:true});
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const course={id:id(1),owner_id:id(2),name:'Fictional Civic Systems — browser acceptance',first_day:'2026-09-01',last_day:'2027-01-29',teaching_weekdays:[1,2,3,4,5],timezone:'America/New_York',revision:1};
 const units=Array.from({length:5},(_,i)=>({id:id(10+i),course_id:course.id,title:'Fictional Unit '+(i+1),position:i+1,target_days:18,revision:1}));
@@ -150,11 +150,13 @@ try{
   for(const width of [1440,390]){
    const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true});context.setDefaultTimeout(20000);
    console.log('Checking '+fixtureName+' at '+width+'px');
-   await context.addInitScript(({fixture})=>{
+   await context.addInitScript(({fixture,probeAuth})=>{
     const snapshot=structuredClone(fixture);const owner=fixture.course.owner_id;
     const db={courses:[fixture.course],units:fixture.units,lessons:fixture.lessons,calendar_exceptions:fixture.exceptions};
+    if(probeAuth)db.courses.push(...[41,42].map(n=>({...fixture.course,id:'10000000-0000-4000-8000-'+String(n).padStart(12,'0'),name:'Fictional additional course '+n})));
+    window.testHoldCourseLists=probeAuth;window.testPendingCourseLists=[];
     window.testDb=db;window.testWrites=[];window.testSnapshot=snapshot;window.rejectWrites=false;
-    const client={auth:{async getSession(){return {data:{session:{user:{id:owner,email:'fictional@example.test'}}}};},async getUser(){return {data:{user:{id:owner}}};},onAuthStateChange(){},async signOut(){return {};}}};
+    const client={auth:{async getSession(){return {data:{session:{user:{id:owner,email:'fictional@example.test'}}}};},async getUser(){return {data:{user:{id:owner}}};},onAuthStateChange(fn){window.testAuthEvent=fn;},async signOut(){return {};}}};
     client.from=table=>{
      const filters=[];let patch=null,columns='*',bounds=null;
      const chain={select(c='*'){columns=c;return chain;},eq(k,v){filters.push([k,v]);return chain;},order(){return chain;},range(start,end){bounds=[start,end];return chain;},update(p){patch=p;return chain;},
@@ -165,7 +167,9 @@ try{
       else rows=rows.filter(x=>db.courses.some(c=>c.id===x.course_id&&c.owner_id===owner));
       if(patch){window.testWrites.push({table,patch});if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};rows.forEach(x=>Object.assign(x,patch,{revision:(x.revision||1)+1}));}
       if(bounds)rows=rows.slice(bounds[0],bounds[1]+1);
-      return {data:structuredClone(rows.map(x=>columns==='*'?x:Object.fromEntries(columns.split(',').map(k=>[k,x[k]])))),error:null};
+      const response={data:structuredClone(rows.map(x=>columns==='*'?x:Object.fromEntries(columns.split(',').map(k=>[k,x[k]])))),error:null};
+      if(window.testHoldCourseLists&&table==='courses'&&columns==='id,name,revision,updated_at')return new Promise(resolve=>window.testPendingCourseLists.push(()=>resolve(response)));
+      return response;
      }return chain;
     };
     client.rpc=async(name,{p_export:json})=>{
@@ -178,10 +182,20 @@ try{
      window.testWrites.push({rpc:name});return {data:cid,error:null};
     };
     window.testClient=client;
-   },{fixture});
+   },{fixture,probeAuth:fixtureName==='preview'});
    const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
    await page.route('https://esm.sh/**',r=>r.fulfill({contentType:'text/javascript',body:'export const createClient=()=>window.testClient;'}));
    await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
+   if(fixtureName==='preview'){
+    await page.waitForFunction(()=>window.testPendingCourseLists.length===1);
+    await page.evaluate(()=>{window.testAuthEvent('INITIAL_SESSION');window.testAuthEvent('TOKEN_REFRESHED');});
+    await page.waitForFunction(()=>window.testPendingCourseLists.length===3);
+    await page.evaluate(()=>{window.testHoldCourseLists=false;window.testPendingCourseLists[2]();window.testPendingCourseLists[0]();window.testPendingCourseLists[1]();});
+    await page.waitForFunction(()=>document.querySelector('#storage-status').textContent.startsWith('3 saved course'));
+    check('auth-'+width+' concurrent responses show three entries',await page.locator('#saved-courses [data-private-open]').count()===3);
+    check('auth-'+width+' each course appears once',await page.locator('#saved-courses [data-private-open]').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.privateOpen)).size===3));
+    check('auth-'+width+' rendering performs no writes',await page.evaluate(()=>window.testWrites.length===0));
+   }
    await page.locator('[data-private-tab="calendar"]').click();
    await page.locator('.saved-month').waitFor();
    const prefix=`${fixtureName}-${width}`;

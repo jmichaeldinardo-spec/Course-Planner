@@ -5,19 +5,28 @@ import { makeAccountBackup } from "./backup.js";
 const client=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const byId=id=>document.getElementById(id);
 const authStatus=byId("auth-status"), storageStatus=byId("storage-status"), authForm=byId("auth-form"),courseForm=byId("course-form"), signout=byId("auth-signout"),list=byId("saved-courses"),restoreDetails=byId("restore-details"),restoreForm=byId("restore-form"),restoreStatus=byId("restore-status"),backupButton=byId("backup-all"),backupStatus=byId("backup-status");
-let user=null;
+let user=null,refreshEpoch=0;
 async function refresh(){
- const {data:{session},error}=await client.auth.getSession();user=session?.user||null;
+ // Startup, INITIAL_SESSION and token/focus events may overlap. Only the latest
+ // refresh may publish a session, course list or automatic workspace selection.
+ const call=++refreshEpoch;
+ try{
+ const {data:{session},error}=await client.auth.getSession();
+ if(call!==refreshEpoch)return;
+ const currentUser=session?.user||null;user=currentUser;
  authStatus.textContent=error?"Unable to check sign-in: "+error.message:user?"Signed in: "+user.email:"Not signed in";
  authForm.hidden=!!user;byId("auth-hint").hidden=!!user;signout.hidden=!user;courseForm.hidden=!user;restoreDetails.hidden=!user;backupButton.hidden=!user;list.replaceChildren();
  if(!user){clearPrivateWorkspace();storageStatus.textContent="Sign in to access private saved courses. The interactive demonstration below does not save changes.";return;}
  storageStatus.textContent="Loading private courses…";
  const {data,error:readError}=await client.from("courses").select("id,name,revision,updated_at").order("updated_at",{ascending:false});
+ if(call!==refreshEpoch)return;
  if(readError){storageStatus.textContent="Could not load courses: "+readError.message;return;}
  storageStatus.textContent=data.length?data.length+" saved course(s). The demonstration below remains separate and temporary.":"No saved courses yet. Create one to test cloud persistence.";
- for(const row of data){const li=document.createElement("li"),b=document.createElement("button");b.type="button";b.dataset.privateOpen=row.id;b.textContent="Open "+row.name;li.append(b,document.createTextNode(" · saved "+new Date(row.updated_at).toLocaleString()));list.append(li);}
+ const items=data.map(row=>{const li=document.createElement("li"),b=document.createElement("button");b.type="button";b.dataset.privateOpen=row.id;b.textContent="Open "+row.name;li.append(b,document.createTextNode(" · saved "+new Date(row.updated_at).toLocaleString()));return li;});
+ list.replaceChildren(...items);
  const prior=activePrivateCourseId();const toOpen=data.find(x=>x.id===prior)?.id||data[0]?.id;
- if(toOpen){if(!isPrivateWorkspaceDirty())await openPrivateCourse(client,user,toOpen);}else clearPrivateWorkspace();
+ if(toOpen){if(!isPrivateWorkspaceDirty())await openPrivateCourse(client,currentUser,toOpen);}else clearPrivateWorkspace();
+ }catch(err){if(call===refreshEpoch)authStatus.textContent="Sign-in check failed: "+err.message;}
 }
 list.addEventListener("click",event=>{const b=event.target.closest("[data-private-open]");if(b&&user){if(isPrivateWorkspaceDirty()&&!confirm("Discard unsaved changes and switch courses?"))return;openPrivateCourse(client,user,b.dataset.privateOpen,{discardUnsaved:true}).catch(err=>{storageStatus.textContent="Could not open course: "+err.message;});}});
 authForm.addEventListener("submit",async e=>{e.preventDefault();const btn=authForm.querySelector("button");btn.disabled=true;authStatus.textContent="Requesting sign-in email…";const email=byId("auth-email").value.trim();const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error){authStatus.textContent=/rate limit/i.test(error.message)?"Supabase email rate limit reached. Do not retry immediately; wait for the limit to reset.": "Sign-in email failed: "+error.message;}else{authStatus.textContent="Check your email for a sign-in link. Open it once in this same browser after authorizing Vercel preview access."; }btn.disabled=false;});
@@ -90,5 +99,5 @@ restoreForm.addEventListener("submit",async e=>{
  }catch(err){restoreStatus.textContent="Restore failed: "+err.message+". Existing courses were not changed.";}
  finally{button.disabled=false;}
 });
-client.auth.onAuthStateChange(()=>{setTimeout(()=>refresh().catch(err=>{authStatus.textContent="Sign-in check failed: "+err.message;}),0)});
-refresh().catch(err=>{authStatus.textContent="Sign-in check failed: "+err.message;});
+client.auth.onAuthStateChange(()=>{setTimeout(()=>refresh(),0)});
+refresh();
