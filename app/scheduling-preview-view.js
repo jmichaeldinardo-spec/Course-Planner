@@ -1,0 +1,39 @@
+import {EVENT_TYPES,normalizeEvent} from './event-effects.js';
+const h=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dates=v=>v===null?'Not assessed — blocked input':v.length?v.join(', '):'Unscheduled / unplaceable';
+export function renderSchedulingPreview(records,draft,result){
+ const events=records.exceptions||[];
+ const saved=events.length?`<details class="event-list"><summary>Saved calendar events (${events.length})</summary><ul>${events.map(e=>`<li><time>${h(e.date)}</time> · ${h(e.title)} · ${h(normalizeEvent(e).effect||'Unknown effect')} <button type="button" data-event-open="${h(e.id)}">Change event</button></li>`).join('')}</ul></details>`:'<p>No calendar events saved yet. Add an event to explore an unsaved preview.</p>';
+ if(!draft)return saved;
+ const closed=draft.eventType==='Closure'||draft.closedDateConstraint,forbiddenKeep=closed||['closed','occupied'].includes(draft.availability);
+ const types=Object.keys(EVENT_TYPES);
+ if(!types.includes(draft.eventType))types.unshift(draft.eventType);
+ const form=`<section class="event-preview-panel" aria-labelledby="event-form-title"><h3 id="event-form-title" tabindex="-1">${draft.eventId?'Change event':'Add calendar event'} · preview only</h3><p>Describe the event, then choose its effect. This form changes no saved records. Leaving Calendar discards this proposal.</p>
+ <form data-event-preview-form><div class="private-form-grid">
+ <label class="private-field">Event title<input name="title" value="${h(draft.title)}" required maxlength="180"></label>
+ <label class="private-field">Date<input type="date" name="date" value="${h(draft.date)}" required></label>
+ <label class="private-field">What is happening?<select name="eventType">${types.map(t=>`<option value="${h(t)}"${t===draft.eventType?' selected':''}>${h(EVENT_TYPES[t]?t:'Legacy / unspecified: '+t)}</option>`).join('')}</select></label>
+ <label class="private-field">Ordinary instruction on this date<select name="availability" aria-describedby="event-availability-help">${[['closed','Closed / no instruction'],['occupied','Occupied by another activity'],['instructional','Instructional — annotation only'],['unknown','Unknown — needs clarification'],['partial','Partial time — allocation unresolved']].map(([v,label])=>`<option value="${v}"${v===draft.availability?' selected':''}${closed&&v!=='closed'?' disabled':''}>${label}</option>`).join('')}</select></label>
+ <label class="private-field">What happens to the lesson?<select name="effect" aria-describedby="event-effect-help"><option value="Move"${draft.effect==='Move'?' selected':''}>Move — propose later eligible dates</option><option value="Keep"${draft.effect==='Keep'?' selected':''}${forbiddenKeep?' disabled':''}>Keep — retain the saved lesson dates</option><option value="Extend" disabled>Extend — coming later</option></select></label>
+ <label class="private-field">Event notes<textarea name="notes" rows="2">${h(draft.notes)}</textarea></label></div>
+ <p id="event-availability-help">A closure remains closed. Occupied dates reserve one ordinary opportunity. Annotation-only Keep does not calculate minutes or additional time.</p>
+ <p id="event-effect-help">${forbiddenKeep?'Keep is unavailable: ordinary instruction cannot remain on a closed or occupied date.':'Move/Keep may override the suggestion when compatible with all course constraints.'} Suggested effect: ${h(EVENT_TYPES[draft.eventType]?.effect||'legacy mapping; clarify subtype')}. Extend and partial-time allocation are not enabled.</p>
+ <div class="event-actions"><button type="submit">Preview impact</button><button type="button" data-event-close>Cancel proposal</button></div></form></section>`;
+ let preview='';
+ if(result){
+  const e=result.eventChange.proposed,t=result.totals;
+  const affected=result.rows.filter(r=>result.affectedIds.includes(r.lessonId));
+  const rows=list=>list.map(r=>{const lesson=records.lessons.find(l=>l.id===r.lessonId);return `<article data-preview-row="${h(r.lessonId)}" data-changed="${r.changed}" class="preview-lesson"><h4><button type="button" data-private-lesson="${h(r.lessonId)}">${h(lesson?.title)}</button></h4><p>${h(lesson?.lesson_type)} · ${h(records.units.find(u=>u.id===r.unitId)?.title||'Missing unit')} · Sequence ${h(r.position)}${r.protected?' · ◆ Protected saved dates':''}</p><dl><div><dt>BEFORE · saved</dt><dd>${h(dates(r.before))}</dd></div><div><dt>PROPOSED · not saved</dt><dd>${h(dates(r.proposed))}</dd></div></dl><p>${h(r.status)}${r.unmetDuration?' · '+h(r.unmetDuration)+' required day(s) not allocated':''}</p></article>`;}).join('');
+  preview=`<section class="event-preview-panel" aria-labelledby="scheduling-preview-title"><h3 id="scheduling-preview-title" tabindex="-1">${result.valid?'Preview ready for review':'Blocked preview'} · not saved</h3><p><strong>No scheduling changes have been saved. Applying proposals is not enabled in Phase 2A.</strong></p>
+  <h4>Event BEFORE → PROPOSED</h4><p>BEFORE: ${result.eventChange.before?h(result.eventChange.before.title+' · '+result.eventChange.before.date+' · '+result.eventChange.before.rawEffect):'No event (new proposal)'}</p><p>PROPOSED: ${h(e.title)} · ${h(e.date)} · ${h(e.eventType)} · ${h(e.availability)} · <strong>${h(e.effect)}</strong> (${h(e.effectOrigin)})</p>
+  ${result.conflicts.length?`<h4>Blocking conflicts (${result.conflicts.length})</h4><ul class="preview-conflicts">${result.conflicts.map(c=>`<li>${h(c.date||'')} ${h(c.message)}${c.lessonId?' · '+h(records.lessons.find(l=>l.id===c.lessonId)?.title):''}</li>`).join('')}</ul>`:''}
+  ${result.warnings.length?`<h4>Information and soft warnings</h4><ul>${result.warnings.map(w=>`<li>${h(w.message)} ${h(w.date||'')}</li>`).join('')}</ul>`:''}
+  <h4>Capacity in this proposal</h4><p>${t.activeLessons} active lesson(s) · ${t.excludedLessons} archived/excluded lesson(s) · ${t.activeUnits} active unit(s) · ${t.excludedUnits} archived unit(s).</p><p>${t.beforeConsumedDays} saved lesson-day assignments BEFORE · ${t.requiredDays} required lesson-days · ${t.availableDays} eligible dates · ${t.reservedDays} reserved/unavailable dates · ${t.consumedDays} proposed occupied eligible dates · ${t.notPlacedLessons} lesson(s) unplaced or not assessed · ${t.unmetDays} required day(s) not allocated.</p>
+  <h4>Affected lesson dates (${affected.length})</h4>${affected.length?rows(affected):'<p>No lesson dates affected. The event is still only a proposal.</p>'}
+  <details><summary>All active lesson comparisons (${result.rows.length})</summary>${rows(result.rows)}</details>
+  <details><summary>Protected commitments (${result.commitments.length})</summary><ul>${result.commitments.map(c=>`<li>${h(records.lessons.find(l=>l.id===c.lessonId)?.title)}: ${h(c.dates.join(', '))}</li>`).join('')}</ul></details>
+  <details><summary>Eligibility dates and review assumptions</summary><p>Eligible: ${h(result.availability.proposed.join(', ')||'None')}</p><p>Reserved / unavailable: ${h(result.availability.reserved.join(', ')||'None')}</p><ul>${result.assumptions.map(a=>`<li>${h(a)}</li>`).join('')}</ul><p>Policy recommendations require product review before any write operation. Preview freshness is based on the last loaded snapshot; unseen remote edits require server validation in Phase 2B.</p></details>
+  <button type="button" data-event-close>Close preview</button></section>`;
+ }
+ return form+preview+saved;
+}

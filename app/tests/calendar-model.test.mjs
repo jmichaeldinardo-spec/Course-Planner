@@ -27,9 +27,10 @@ test('term endpoints, ISO Sundays and teaching weekdays are respected',()=>{
  assert.equal(m.summary.confirmedDays,2);assert.equal(m.availability('2026-09-03'),'outside term');assert.equal(m.availability('2026-09-05'),'non-teaching weekday');
  assert.equal(build({course:{...course,teaching_weekdays:[7]}}).summary.confirmedDays,4);
 });
-test('No Lesson blocks capacity; other effects stay explicitly uncertain',()=>{
+test('legacy effects follow DEC-027; unknown effects stay explicitly uncertain',()=>{
  const exceptions=['No Lesson','Replace Lesson','Continue Lesson'].map((effect,i)=>({id:String(i),course_id:'c',date:`2026-09-0${i+1}`,effect,title:effect}));
- const m=build({exceptions});assert.equal(m.summary.confirmedDays,19);assert.equal(m.summary.uncertainDays,2);assert.equal(m.availability('2026-09-01'),'blocked');assert.equal(m.availability('2026-09-02'),'uncertain');assert.equal(codes(m).filter(x=>x==='ambiguous-effect').length,2);
+ const m=build({exceptions});assert.equal(m.summary.confirmedDays,20);assert.equal(m.summary.uncertainDays,0);assert.equal(m.availability('2026-09-01'),'blocked');assert.equal(m.availability('2026-09-02'),'blocked');assert.equal(m.availability('2026-09-03'),'instructional');assert.equal(codes(m).filter(x=>x==='ambiguous-effect').length,0);
+ const unknown=build({exceptions:[{id:'unknown',course_id:'c',date:'2026-09-04',effect:'Unknown',title:'Unclear'}]});assert.equal(unknown.summary.uncertainDays,1);assert.ok(codes(unknown).includes('ambiguous-effect'));
 });
 test('one and multi-day lessons use duration rather than record count',()=>{
  const m=build({lessons:[lesson('one',{scheduled_dates:['2026-09-01']}),lesson('two',{duration_days:2,scheduled_dates:['2026-09-02','2026-09-03']})]});

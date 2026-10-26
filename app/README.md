@@ -61,8 +61,9 @@ diagnostics. Saved dates, hard pins and flexible preferences remain distinct.
 Archived lessons and lessons in archived units are excluded from active calendar
 placements, diagnostics and pacing; full records remain in exports/backups.
 Restoring a unit does not clear its lessons' individual archive flags.
-`No Lesson` blocks confirmed capacity; `Replace Lesson` and `Continue Lesson`
-remain explicitly uncertain pending product clarification. Calendar does not write
+`No Lesson` and `Replace Lesson` now normalize to Move; `Continue Lesson`
+normalizes to Keep under CPD DEC-027. Unknown or contradictory effects remain
+uncertain. Calendar does not write
 schedule changes. See [implementation, exact tests and Phase 2 plan](docs/saved-calendar-phase1.md).
 
 The dependency-free suite remains `node --test tests/*.test.mjs`. Optional browser
@@ -71,3 +72,17 @@ acceptance uses `node tests/calendar.browser.mjs` with Playwright available via
 The optional approved stored-fictional fixture and screenshots belong only in
 Git-excluded `app/reviews/`. `python3 tests/verify-demo-regression.py` (from `/app`)
 runs the existing public-demo browser suite without overwriting older evidence.
+
+
+## Event + Scheduling Effect previews (Phase 2A, Issue #3)
+
+Saved Calendar provides **Add calendar event** and **Change event** proposals.
+Choose the circumstance and ordinary-instruction availability, then Move or Keep.
+A deterministic BEFORE → PROPOSED comparison shows complete affected date arrays,
+protected commitments, capacity, blocking conflicts and soft warnings. Cancel/Close
+only discards transient state. There is no scheduling Save/Apply/Confirm path;
+Extend and partial-time allocation remain deferred/blocked.
+
+See [design, migration/RPC recommendations and review gates](docs/scheduling-phase2-design.md)
+and [test evidence/limits](docs/scheduling-phase2a-verification.md). Scheduling
+writes and schema changes require a separate reviewed Phase 2B implementation.
