@@ -52,3 +52,22 @@ A six-digit-code option was prototyped but withdrawn from the active app because
 - The backup process checks course/child revisions again before completing a ZIP, and aborts if it detects concurrent changes. It is a best-effort multi-query snapshot, not a fully atomic PostgreSQL point-in-time snapshot. Tested ZIP structure, hashes, access identity and abort behavior in CI; **live browser download and real independent backup verification are not yet complete.**
 - This is **user-initiated**, not automatic. Users must save their ZIP outside Supabase (for example to private Drive). Supabase Free does not provide downloadable managed daily database backups.
 - Still needed before trusting authentic course data: real second-account unauthorized-write tests, post-download ZIP restore checks, offline/failure recovery evaluation, database scheduling integration, backup frequency and retention design, and full owner-first pilot acceptance.
+
+## Saved calendar Phase 1 (Issue #1)
+
+The authenticated saved workspace now has a read-only Month grid and Week/Agenda,
+day details linking to the same lesson editor, and deterministic capacity/conflict
+diagnostics. Saved dates, hard pins and flexible preferences remain distinct.
+Archived lessons and lessons in archived units are excluded from active calendar
+placements, diagnostics and pacing; full records remain in exports/backups.
+Restoring a unit does not clear its lessons' individual archive flags.
+`No Lesson` blocks confirmed capacity; `Replace Lesson` and `Continue Lesson`
+remain explicitly uncertain pending product clarification. Calendar does not write
+schedule changes. See [implementation, exact tests and Phase 2 plan](docs/saved-calendar-phase1.md).
+
+The dependency-free suite remains `node --test tests/*.test.mjs`. Optional browser
+acceptance uses `node tests/calendar.browser.mjs` with Playwright available via
+`NODE_PATH`; it uses a test client and synthetic records, not real credentials.
+The optional approved stored-fictional fixture and screenshots belong only in
+Git-excluded `app/reviews/`. `python3 tests/verify-demo-regression.py` (from `/app`)
+runs the existing public-demo browser suite without overwriting older evidence.

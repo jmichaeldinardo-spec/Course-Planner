@@ -66,3 +66,38 @@
 .auth-otp-details label{font-size:.84rem;}
 .auth-otp-details input{max-width:180px;}
 .auth-otp-details p{font-size:.81rem;margin:5px 0;}
+
+/* Saved-calendar styles are scoped away from the ephemeral demonstration. */
+.saved-calendar-toolbar,.saved-calendar-toolbar>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between}
+.saved-calendar-toolbar h3{margin:0}
+.saved-calendar-toolbar button,.saved-calendar-day>button,.saved-warnings button{background:#293349;border:1px solid #7182a1;border-radius:7px;color:#f3f5ff;padding:9px 12px;cursor:pointer;min-height:44px}
+.saved-calendar-toolbar button[aria-pressed=true],.saved-calendar-day>button[aria-pressed=true]{background:#c7caff;color:#171a25}
+.private-workspace :focus-visible{outline:3px solid #e6c977;outline-offset:3px}
+.saved-calendar-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:18px;align-items:start;margin:20px 0}
+.saved-month,.saved-agenda{min-width:0}
+.saved-weekdays,.saved-month-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.saved-weekdays{text-align:center;font-size:.8rem;padding-bottom:10px}
+.saved-weekdays abbr{text-decoration:none}
+.saved-calendar-day{border:1px solid #50617d;min-width:0;padding:5px;min-height:110px;background:#202b3e;overflow-wrap:anywhere}
+.saved-calendar-day>button{width:100%;padding:6px;font-weight:700}
+.saved-calendar-day[data-availability=blocked],.saved-calendar-day[data-availability="non-teaching weekday"],.saved-calendar-day[data-availability="outside term"]{background:#171e2b}
+.saved-calendar-day[data-availability=uncertain]{background:#393124}
+.saved-outside-month>button{border-style:dashed}
+.saved-day-events{display:flex;flex-direction:column;gap:8px;margin-top:8px;font-size:.76rem}
+.private-workspace .saved-day-events button[data-private-lesson]{padding:6px;text-align:left;width:100%;font-size:.78rem;min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.saved-day-events span{display:block;margin-top:4px;color:#d5dcec}
+.saved-exception{border-left:3px solid #ebbd74;padding-left:5px}
+.saved-day-detail{background:#121d2e;padding:16px;border:1px solid #536783;border-radius:9px;overflow-wrap:anywhere;max-height:760px;overflow-y:auto}
+.saved-day-detail h3{margin-top:0}
+.saved-event{border-bottom:1px solid #50617d;padding:10px 0;overflow-wrap:anywhere}
+.saved-event p{margin:7px 0}
+.saved-agenda{display:grid;gap:8px}
+.saved-agenda .saved-calendar-day{min-height:70px}
+.saved-warnings{margin:16px 0;border:1px solid #8c744a;border-radius:8px}
+.saved-warnings li{margin:12px 0;overflow-wrap:anywhere}
+.saved-warnings button{font-size:.83rem}
+@media(max-width:1100px){.saved-calendar-layout{grid-template-columns:1fr}.saved-day-detail{max-height:none}}
+@media(max-width:600px){.saved-calendar-toolbar{display:block}.saved-calendar-toolbar>div{margin:12px 0}.saved-calendar-toolbar h3{font-size:.9rem}.saved-calendar-day{padding:2px;min-height:90px}.saved-calendar-day>button{padding:2px;font-size:.78rem}.saved-day-events{font-size:.66rem;gap:5px}.private-workspace .saved-day-events button[data-private-lesson]{font-size:.68rem;padding:4px 2px}.saved-weekdays{font-size:.72rem}.saved-day-detail{padding:12px}.saved-calendar-layout{gap:12px}}
+.saved-mobile-markers{display:none}
+.saved-calendar-layout a,.private-content a{color:#d5c9ff}
+@media(max-width:600px){.saved-month .saved-day-events{display:none}.saved-month .saved-calendar-day{padding:0;min-height:112px}.saved-month .saved-calendar-day>button{border-radius:4px}.saved-month .saved-mobile-markers{display:flex;flex-direction:column;gap:4px;padding:5px 1px;text-align:center;font-size:.65rem;line-height:1.25;overflow-wrap:normal}.saved-month .saved-mobile-markers span{display:block}}

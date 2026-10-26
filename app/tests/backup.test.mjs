@@ -20,11 +20,12 @@ function zipFiles(zip) {
  assert.equal(view.getUint32(offset,true),0x02014b50);
  return files;
 }
-function fakeClient({invalidLink=false,editDuringRead=false}={}) {
+function fakeClient({invalidLink=false,editDuringRead=false,archived=false}={}) {
  const owner="55555555-5555-4555-8555-555555555555";
  const course={id:"11111111-1111-4111-8111-111111111111",owner_id:owner,name:"Test Course",revision:1,updated_at:"2026-10-26T12:00:00Z"};
  const unit={id:"22222222-2222-4222-8222-222222222222",course_id:course.id,title:"Test Unit",position:1,revision:1,updated_at:"2026-10-26T12:00:00Z"};
  const lesson={id:"33333333-3333-4333-8333-333333333333",course_id:course.id,unit_id:invalidLink?"44444444-4444-4444-8444-444444444444":unit.id,position:1,title:"Test Lesson",objective:"Bilingual ¿Qué?",revision:1,updated_at:"2026-10-26T12:00:00Z"};
+ if(archived){unit.archived_at="2026-10-26T12:00:00Z";lesson.archived_at="2026-10-26T12:00:00Z";lesson.scheduled_dates=["2026-09-01"];lesson.protected_pin_date="2026-09-01";}
  const db={courses:[course],units:[unit],lessons:[lesson],calendar_exceptions:[]};
  let checks=0;
  return {
@@ -96,4 +97,15 @@ test("private app exposes signed-in backup control",()=>{
  assert.match(html,/id="backup-status"/);
  assert.match(auth,/makeAccountBackup\(client,exportingUser/);
  assert.match(auth,/isPrivateWorkspaceDirty\(\)/);
+});
+
+test("account backup preserves archived units and dated/pinned lessons for recovery",async()=>{
+ const client=fakeClient({archived:true});
+ const {bytes}=await makeAccountBackup(client,{id:client.owner},()=>{},webcrypto.subtle);
+ const files=zipFiles(bytes),entry=[...files.entries()].find(([name])=>name.startsWith("course-planner-"));
+ const json=JSON.parse(td.decode(entry[1]));
+ assert.equal(json.units[0].archived_at,"2026-10-26T12:00:00Z");
+ assert.equal(json.lessons[0].archived_at,"2026-10-26T12:00:00Z");
+ assert.deepEqual(json.lessons[0].scheduled_dates,["2026-09-01"]);assert.equal(json.lessons[0].protected_pin_date,"2026-09-01");
+ assert.equal(json.lessons[0].unit_id,json.units[0].id);
 });
