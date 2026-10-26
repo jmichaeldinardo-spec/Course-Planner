@@ -33,10 +33,21 @@ export const savedCalendarDates=lesson=>Array.isArray(lesson.scheduled_dates)?le
 const order=(a,b)=>(a.position-b.position)||String(a.id).localeCompare(String(b.id),"en");
 const duration=l=>Number.isInteger(l.duration_days)&&l.duration_days>=1&&l.duration_days<=366?l.duration_days:null;
 
+// Calendar scope only: keep the complete saved collections for recovery/export.
+// Archiving a unit suppresses its lessons without changing their own archive flags.
+// Missing units remain diagnostic errors rather than silently hiding their lessons.
+export function activeCalendarRecords({course,units=[],lessons=[]}){
+ const courseUnits=units.filter(u=>u.course_id===course.id);
+ const archivedUnits=new Set(courseUnits.filter(u=>u.archived_at!=null).map(u=>u.id));
+ return {
+  units:courseUnits.filter(u=>u.archived_at==null).sort(order),
+  lessons:lessons.filter(l=>l.course_id===course.id&&l.archived_at==null&&!archivedUnits.has(l.unit_id)).sort(order)
+ };
+}
+
 export function buildCalendarModel({course,units=[],lessons=[],exceptions=[]}){
  // Derived collections only. No edits, database calls, or second lesson store.
- const unitList=units.filter(u=>u.course_id===course.id).slice().sort(order);
- const lessonList=lessons.filter(l=>l.course_id===course.id).slice().sort(order);
+ const {units:unitList,lessons:lessonList}=activeCalendarRecords({course,units,lessons});
  const exceptionList=exceptions.filter(e=>e.course_id===course.id).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id)));
  const days={},warnings=[];
  const warn=(code,message,date=null,lessonId=null)=>warnings.push({code,message,date,lessonId});

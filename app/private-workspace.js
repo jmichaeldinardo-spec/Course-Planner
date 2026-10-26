@@ -1,4 +1,4 @@
-import {isCalendarDate,addCalendarDays,shiftCalendarMonth,weekStart,todayInCourse} from "./calendar-model.js";
+import {isCalendarDate,addCalendarDays,shiftCalendarMonth,weekStart,todayInCourse,activeCalendarRecords} from "./calendar-model.js";
 import {renderSavedCalendar} from "./calendar-view.js";
 
 /* Private Course Planner vertical slice: real, owner-isolated Supabase records.
@@ -81,7 +81,7 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}
  if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else root.textContent="Course unavailable for this account.";return false;}
  course=c.data;units=u.data||[];lessons=l.data||[];exceptions=e.data||[];
  if(!sameCourse||!calendarState){
-  const initial=isCalendarDate(course.first_day)?course.first_day:lessons.flatMap(l=>l.scheduled_dates||[]).filter(isCalendarDate).sort()[0]||todayInCourse(course.timezone);
+  const initial=isCalendarDate(course.first_day)?course.first_day:activeCalendarRecords({course,units,lessons}).lessons.flatMap(l=>l.scheduled_dates||[]).filter(isCalendarDate).sort()[0]||todayInCourse(course.timezone);
   calendarState={view:"month",anchor:initial,selected:initial};
  }
  if(!units.some(x=>x.id===selectedUnit))selectedUnit=units[0]?.id||null;

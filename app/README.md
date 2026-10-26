@@ -58,6 +58,9 @@ A six-digit-code option was prototyped but withdrawn from the active app because
 The authenticated saved workspace now has a read-only Month grid and Week/Agenda,
 day details linking to the same lesson editor, and deterministic capacity/conflict
 diagnostics. Saved dates, hard pins and flexible preferences remain distinct.
+Archived lessons and lessons in archived units are excluded from active calendar
+placements, diagnostics and pacing; full records remain in exports/backups.
+Restoring a unit does not clear its lessons' individual archive flags.
 `No Lesson` blocks confirmed capacity; `Replace Lesson` and `Continue Lesson`
 remain explicitly uncertain pending product clarification. Calendar does not write
 schedule changes. See [implementation, exact tests and Phase 2 plan](docs/saved-calendar-phase1.md).

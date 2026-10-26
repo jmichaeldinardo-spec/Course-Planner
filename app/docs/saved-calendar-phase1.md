@@ -44,7 +44,7 @@ designated collaboration account; no school account/data was used.
   unknown effects are displayed verbatim, flagged uncertain, and excluded from
   **confirmed** capacity. They are not silently treated as either closures or
   ordinary teaching days. Phase 2 must resolve their exact semantics.
-- Saved placements always remain visible, even outside term, on closures or with
+- Active saved placements remain visible, even outside term, on closures or with
   overlaps. Pins/preference markers without placements do not create saved events.
 - Diagnostics cover invalid/duplicate/incomplete dates, duration, missing unit
   links, unavailable saved dates, closure/nonteaching/out-of-term pin collisions,
@@ -58,6 +58,18 @@ designated collaboration account; no school account/data was used.
   Unknown lesson durations disable feasibility. A failure is conditional on these
   assumptions; the UI explains that resolving unknown effects may change it.
 - Unit targets compare pacing only. They never trigger a recalculation or write.
+- Calendar activity requires a lesson's `archived_at` to be null/absent and its
+  same-course unit not to be archived. Archived units are omitted from pacing;
+  all their lessons are excluded even if the lessons' own flags remain null.
+  This applies before dates, pins/preferences, demand, unscheduled/incomplete work,
+  order/overlap warnings, feasibility and pacing are derived. Calendar's initial
+  date fallback also uses active lessons only.
+- Archive filtering is a read-only projection. The saved collections, stable IDs,
+  archive flags, dates, pins, preferences, unit relationships, revision checks,
+  editor recovery access, course JSON and account ZIP contents remain intact.
+  Restoring a unit makes only its non-archived lessons eligible again; it does not
+  unarchive lessons individually. Missing parents remain visible diagnostic errors.
+  Course-level exception records retain their existing availability effects.
 
 ## Verification — October 26, 2026
 
@@ -70,14 +82,18 @@ Playwright directory when running the standalone browser harness.
 cd app && node --test tests/*.test.mjs
 ```
 
-37 tests passed, zero failures. Includes existing auth/source contracts, unsaved
+43 tests passed, zero failures. Includes existing auth/source contracts, unsaved
 async refresh guards, revision-write checks, restore/export contracts, ZIP structure,
 SHA-256 manifests, ownership checks and concurrent-backup abort tests. New pure
 coverage includes leap/nonleap February, complete week layout, ISO weekdays, term
 endpoints, DST transitions across three host zones, closures, uncertain exceptions,
 one/multi-day durations, duplicate/overlapping/missing dates, pins vs preferences,
 ordered constraints, insufficient capacity, deterministic results, immutability,
-cross-course filtering, HTML escaping, empty state and 80/12 scale.
+cross-course filtering, HTML escaping, empty state and 80/12 scale. Archive
+regressions cover a dated/pinned archived lesson sharing a live lesson's date,
+archived unscheduled/invalid/preferred records, archived units with non-archived
+children, recovery without changing child flags, null/absent archive flags,
+filtered Month/Agenda/detail labels and preserved archived backup records.
 
 ```sh
 NODE_PATH=/Users/aidevelopment/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules \
@@ -85,12 +101,15 @@ COURSE_PLANNER_CALENDAR_FIXTURE=app/reviews/saved-calendar-phase1/stored-fiction
 /Users/aidevelopment/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node app/tests/calendar.browser.mjs
 ```
 
-75 browser checks passed at 1440px and 390px, zero uncaught browser errors.
+153 browser checks passed at 1440px and 390px, zero uncaught browser errors.
 Checks cover real application modules, scoped Month/Week toggle, period navigation,
 day detail and IDs, keyboard arrows/focus, minimum mobile date-button size,
 page overflow, lesson editor ID/focus, unsaved navigation rejection, save/reopen,
 stale revision rejection, JSON download/import to a separate course, ZIP download
-with original/restored course entries, and empty first-course state. Calendar
+with original/restored course entries, and empty first-course state. The archive
+fixture checks omitted lesson IDs/labels and unit pacing in Month and Agenda,
+excluded unscheduled work, and complete archived-record retention through JSON,
+separate-course restore and ZIP backup. Calendar
 navigation was asserted to perform zero mutations. Playwright and local loopback
 server require the desktop sandbox's execution permission.
 
@@ -126,6 +145,8 @@ Runs the existing `tests/verify_demo.py` against unchanged marketing/demo code.
 The wrapper substitutes only its hardcoded local port and output directory,
 preserving all assertions and all pre-existing untracked review files.
 265 checks passed at 1440px/390px, with 42 screenshots and zero browser errors.
+The first review-fix run stopped on the unchanged marketing page's mobile
+`#customization` anchor assertion; the unmodified suite passed on its one rerun.
 
 ```sh
 git diff --check
@@ -147,7 +168,8 @@ Passed. Browser evidence and approved fixture stay under
 ## Proposed Phase 2
 
 1. Resolve exception semantics with product owner and executable fixtures; settle
-   archived-record treatment and hard-pin multi-day rules before implementing writes.
+   hard-pin multi-day rules before implementing writes. Preserve the active-calendar
+   archive policy above when adding explicit archive/recovery operations.
 2. Extend the pure core to return explicit BEFORE → PROPOSED dates for every affected
    lesson, constraints, capacity, unscheduled work and protected conflicts. Preserve
    IDs/content/order unless the proposed action explicitly changes order.
@@ -163,3 +185,24 @@ Passed. Browser evidence and approved fixture stay under
    fresh preview. Retain independent export/recovery paths and test interrupted writes,
    retries, rollback, stale preview, two accounts, multi-day pins, ambiguous-effect
    resolution, mobile confirmation and cancellation before any pilot promotion.
+
+
+## PR #2 archive review correction — October 26, 2026
+
+Addressed the review's active-calendar archive bug at the projection boundary,
+without database, auth, persistence or backup changes. Live metadata confirmed
+`archived_at` columns on both units and lessons. Refreshed only archive flags in
+the previously approved local stored-fictional fixture through authenticated-role
+RLS and a rolled-back read transaction: 5 units / 80 lessons, none archived.
+Consequently, archive-specific behavior is covered by synthetic records, while
+the stored-fictional fixture preserves the original 80-lesson smoke regression.
+The new active-calendar count explains why the full saved workspace/export count
+can be larger than active calendar totals.
+
+Commands above were rerun: 43 Node tests and 153 calendar browser checks passed.
+Existing-demo browser results and `git diff --check` are reported above. The
+standalone browser harness uses a test client; it is not hosted acceptance.
+The actual PR preview was opened in the existing Chrome profile and displayed
+“Not signed in”. The user then established the collaboration-account session for the review's
+hosted read-only acceptance. That check awaits the updated branch preview;
+no credentials were copied and no scheduling writes were performed.

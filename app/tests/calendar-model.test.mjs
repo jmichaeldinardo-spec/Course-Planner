@@ -100,3 +100,56 @@ test('saved dates out of sequence remain visible and produce a dated warning',()
  assert.ok(m.warnings.some(w=>w.code==='saved-order'&&w.lessonId==='b'&&w.date==='2026-09-01'));
  assert.equal(m.days['2026-09-01'].lessons[0].id,'b');
 });
+
+test('archived dated/pinned lessons cannot create active placements, overlaps or capacity demand',()=>{
+ const active=lesson('active',{scheduled_dates:['2026-09-01'],archived_at:null});
+ const archived=lesson('archived',{position:2,duration_days:366,scheduled_dates:['2026-09-01','2026-09-02'],protected_pin_date:'2026-09-01',archived_at:'2026-10-26T12:00:00Z'});
+ const input={course:{...course,last_day:'2026-09-01'},units:[unit],lessons:[active,archived]};
+ const before=JSON.stringify(input),m=buildCalendarModel(input);
+ assert.deepEqual(m.lessons,[active]);assert.strictEqual(m.days['2026-09-01'].lessons[0],active);
+ assert.deepEqual(m.days['2026-09-01'].pins,[]);assert.equal(m.days['2026-09-02'],undefined);
+ assert.equal(m.summary.requiredDays,1);assert.equal(m.summary.savedLessonDays,1);assert.equal(m.summary.occupiedDates,1);
+ assert.deepEqual(m.pacing.map(p=>[p.requiredDays,p.savedDays]),[[1,1]]);
+ assert.deepEqual(m.feasibility,[{lessonId:'active',state:'fits'}]);assert.deepEqual(m.warnings,[]);
+ assert.equal(JSON.stringify(input),before);assert.equal(input.lessons[1].protected_pin_date,'2026-09-01');
+});
+
+test('archived unscheduled, preferred and invalid records do not affect any active diagnostic',()=>{
+ const active=lesson('active',{scheduled_dates:['2026-09-01']});
+ const archived=[lesson('unscheduled',{archived_at:'2026-10-26'}),lesson('preferred',{duration_days:null,scheduled_dates:['bad','bad'],flexible_preference_date:'bad',archived_at:'2026-10-26'})];
+ const baseline=build({lessons:[active]}),m=build({lessons:[active,...archived]});
+ assert.equal(JSON.stringify(m),JSON.stringify(baseline));assert.equal(m.unscheduled.length,0);assert.equal(m.incomplete.length,0);assert.equal(m.summary.unknownDurations,0);
+});
+
+test('archived units exclude their lessons and pacing without rewriting child archive flags',()=>{
+ const archivedUnit={...unit,id:'archived-unit',title:'Archived unit',target_days:999,archived_at:'2026-10-26'};
+ const active=lesson('active',{scheduled_dates:['2026-09-01']});
+ const child=lesson('unit-child',{unit_id:archivedUnit.id,position:2,duration_days:20,scheduled_dates:['2026-09-01'],protected_pin_date:'2026-09-01',archived_at:null});
+ const input={course,units:[unit,archivedUnit],lessons:[active,child]},before=JSON.stringify(input);
+ const m=buildCalendarModel(input),baseline=build({lessons:[active]});
+ assert.equal(JSON.stringify(m),JSON.stringify(baseline));assert.equal(JSON.stringify(input),before);
+ const recovered=buildCalendarModel({...input,units:[unit,{...archivedUnit,archived_at:null}]});
+ assert.deepEqual(recovered.lessons.map(l=>l.id),['active','unit-child']);assert.equal(recovered.pacing.find(p=>p.unit.id===archivedUnit.id).unit.target_days,999);
+ assert.equal(recovered.days['2026-09-01'].pins[0].id,'unit-child');assert.equal(input.lessons[1].archived_at,null);
+});
+
+test('calendar archive flags are non-null and recovery respects each lesson flag',()=>{
+ const archivedUnit={...unit,archived_at:'2026-10-26'};
+ const input={course,units:[archivedUnit],lessons:[lesson('active-child',{archived_at:null}),lesson('own-archive',{archived_at:'2026-10-26'})]};
+ assert.equal(buildCalendarModel(input).lessons.length,0);
+ assert.deepEqual(buildCalendarModel({...input,units:[unit]}).lessons.map(l=>l.id),['active-child']);
+ assert.equal(build({lessons:[lesson('missing-flag'),lesson('null-flag',{archived_at:null}),lesson('non-null-flag',{archived_at:''})]}).lessons.length,2);
+ // A missing parent is still surfaced, rather than silently treated as archived.
+ assert.ok(build({lessons:[lesson('orphan',{unit_id:'missing'})]}).warnings.some(w=>w.code==='unit'));
+});
+
+test('Month, Agenda, day details and warnings omit archived labels, IDs and unit targets',()=>{
+ const archivedUnit={...unit,id:'archived-unit',title:'Archived pacing label',target_days:999,archived_at:'2026-10-26'};
+ const active=lesson('active',{scheduled_dates:['2026-09-01']});
+ const records={course,units:[unit,archivedUnit],lessons:[active,lesson('hidden-pin',{title:'Hidden pin label',protected_pin_date:'2026-09-01',scheduled_dates:['2026-09-01'],archived_at:'2026-10-26'}),lesson('hidden-unscheduled',{title:'Hidden unscheduled label',archived_at:'2026-10-26'}),lesson('hidden-child',{title:'Hidden child label',unit_id:archivedUnit.id,scheduled_dates:['2026-09-01']})]};
+ for(const view of ['month','week']){
+  const html=renderSavedCalendar(records,{view,anchor:'2026-09-01',selected:'2026-09-01'});
+  assert.match(html,/Active calendar: 1 unit\(s\) · 1 lesson\(s\)/);assert.match(html,/Unscheduled lessons \(0\)/);assert.match(html,/data-private-lesson="active"/);
+  for(const text of ['Hidden pin label','Hidden unscheduled label','Hidden child label','Archived pacing label','target 999','data-private-lesson="hidden-'])assert.ok(!html.includes(text),text);
+ }
+});
