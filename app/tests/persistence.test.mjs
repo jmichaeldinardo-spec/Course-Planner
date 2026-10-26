@@ -53,7 +53,7 @@ test("unsaved drafts block background refreshes and in-flight responses",async()
   replaceChildren(){this.innerHTML="";},
  };
  const document={
-  getElementById(id){return root;},
+  getElementById(id){return id==="private-workspace"?root:{dataset:{},textContent:""};},
   createElement(){return {dataset:{},append(){},remove(){}};},
  };
  const context={document,console,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
