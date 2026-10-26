@@ -43,3 +43,60 @@ test("magic link remains available with preview access guidance",()=>{
  assert.match(auth,/client\.auth\.signInWithOtp/);
  assert.doesNotMatch(auth,/client\.auth\.verifyOtp/);
 });
+
+test("unsaved drafts block background refreshes and in-flight responses",async()=>{
+ const handlers={};
+ const root={
+  hidden:true,
+  innerHTML:"",
+  addEventListener(name,fn){handlers[name]=fn;},
+  replaceChildren(){this.innerHTML="";},
+ };
+ const document={
+  getElementById(id){return root;},
+  createElement(){return {dataset:{},append(){},remove(){}};},
+ };
+ const context={document,console,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
+ vm.createContext(context);
+ const source=workspace.replace(/^export /gm,"");
+ vm.runInContext(source,context,{filename:"private-workspace.js"});
+ const user={id:"teacher-id"};
+ const record={id:"11111111-1111-4111-8111-111111111111",owner_id:user.id,name:"Test Course"};
+ let finishLoad;
+ const delayed=new Promise(resolve=>{finishLoad=resolve;});
+ const client={
+  from(table){
+   const chain={
+    select(){return chain;},
+    eq(){return chain;},
+    order(){return chain;},
+    single(){return delayed;},
+    then(resolve){return delayed.then(resolve);},
+   };
+   return chain;
+  }
+ };
+ const loading=context.openPrivateCourse(client,user,record.id);
+ // Simulate user beginning an edit while a prior automatic load is in flight.
+ handlers.input({target:{closest(selector){return selector.includes("data-private-save")?{}:null;}}});
+ finishLoad({data:record,error:null});
+ const applied=await loading;
+ assert.equal(applied,false);
+ assert.equal(context.isPrivateWorkspaceDirty(),true);
+ assert.equal(root.hidden,false);
+ assert.equal(root.innerHTML,"<p role=\"status\">Loading your saved course…</p>");
+ // A second automatic refresh must be rejected BEFORE touching visible DOM.
+ const before=root.innerHTML;
+ const second=await context.openPrivateCourse(client,user,record.id);
+ assert.equal(second,false);
+ assert.equal(root.innerHTML,before);
+});
+test("dirty drafts are preserved by auth refresh and require explicit discard",()=>{
+ assert.match(auth,/isPrivateWorkspaceDirty\(\)/);
+ assert.match(workspace,/if\(dirty && !discardUnsaved\)/);
+ assert.match(workspace,/if\(dirty \|\| editEpoch!==editAtStart\)/);
+ assert.match(workspace,/data-private-reload/);
+ assert.match(workspace,/Save conflict: this record changed/);
+ assert.match(workspace,/\.eq\("revision",record\.revision\)/);
+ assert.match(auth,/discardUnsaved:true/);
+});
