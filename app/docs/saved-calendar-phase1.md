@@ -136,6 +136,7 @@ instructional dates, 5 uncertain dates, 80 lessons,
 failures. The actual saved dates were rendered at both widths and checked for
 stable lesson links and zero changes. This verifies read/projection/rendering of
 stored fictional records, **not** a live signed-in hosted run of the new feature.
+The subsequent hosted follow-up is recorded in the review correction below.
 
 ```sh
 python3 app/tests/verify-demo-regression.py
@@ -159,9 +160,10 @@ Passed. Browser evidence and approved fixture stay under
 
 - Define Replace/Continue semantics, including partial-day/reserved flex behavior,
   collision precedence, and how multi-day pinned starts consume capacity.
-- Hosted signed-in acceptance for this new branch remains open. No live auth,
-  restore or backup write tests were repeated during this change. Earlier pilot
-  milestones remain historical evidence, not newly claimed results.
+- Hosted read-only acceptance passed on the archive fix, as recorded below. Live
+  restore/backup write tests were not repeated during this change; the browser
+  regressions for those handlers use the test client. Earlier pilot milestones
+  remain historical evidence, not newly claimed results.
 - Cross-account unauthorized-write testing and disaster recovery remain existing
   pilot gates. No production promotion or merge is part of this work.
 
@@ -202,7 +204,29 @@ can be larger than active calendar totals.
 Commands above were rerun: 43 Node tests and 153 calendar browser checks passed.
 Existing-demo browser results and `git diff --check` are reported above. The
 standalone browser harness uses a test client; it is not hosted acceptance.
-The actual PR preview was opened in the existing Chrome profile and displayed
-“Not signed in”. The user then established the collaboration-account session for the review's
-hosted read-only acceptance. That check awaits the updated branch preview;
-no credentials were copied and no scheduling writes were performed.
+The user established the designated collaboration-account session in the real
+PR preview. After GitHub CI and the branch preview passed for archive-fix commit
+`f7c048cc1190b4bee926f8987d7e208d63a35e34`, the signed-in tab was reloaded and
+**17 hosted checks passed** using the actual saved 80-lesson fictional course:
+
+- Correct active counts and capacity totals; six unscheduled lessons.
+- Calendar lesson link opened the exact same stable lesson ID/title in Lesson
+  Planning with inherited unit context; no form fields were edited or saved.
+- Month/Week stayed scoped to Calendar; next/previous week and keyboard day
+  navigation worked; saved multi-day dates, pins, soft preferences and closures
+  were distinct; Replace/Continue remained explicitly uncertain.
+- No page overflow and no hosted browser errors.
+
+Before/after authenticated-role SQL signatures matched for the course's calendar
+configuration/revision, unit IDs/order/targets/archive flags/revisions, lesson
+IDs/parents/order/duration/dates/pins/preferences/archive flags/revisions, and all
+exception rows. No saved data changed during hosted acceptance. No credentials
+were copied, no archive flags were changed, and no scheduling writes were made.
+The stored course has no archived records; archive-specific behavior remains
+covered by synthetic model/browser regressions rather than a live archive mutation.
+
+Git-excluded evidence: `hosted-browser-results.json`,
+`hosted-persistence-check.json` and `hosted-archive-review.png` under
+`app/reviews/saved-calendar-phase1/`. The application code checked in this hosted
+run is unchanged by the subsequent report-only commit. The PR remains draft;
+there was no merge or production promotion.
