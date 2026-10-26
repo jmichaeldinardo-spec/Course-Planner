@@ -27,7 +27,7 @@ const lessonFields = [
  ["assessment","Assessment","textarea"],["homework","Homework","textarea"],["notes","Lesson notes","textarea"],
  ["textbook_map_item","Textbook map item","text"]
 ];
-let api=null, owner=null, course=null, units=[],lessons=[],exceptions=[],selectedUnit=null,selectedLesson=null,tab="sequence",dirty=false,epoch=0;
+let api=null, owner=null, course=null, units=[],lessons=[],exceptions=[],selectedUnit=null,selectedLesson=null,tab="sequence",dirty=false,epoch=0,editEpoch=0;
 function status(message,kind="info"){const e=$("private-status");if(e){e.textContent=message;e.dataset.kind=kind;}}
 function field([name,label,type,options],value){
  const text=escapeHtml(value??"");
@@ -42,29 +42,46 @@ function formValues(form,fields){const f=new FormData(form),out={};
  return out;
 }
 function canNavigate(){return !dirty || confirm("Your current changes are not saved. Discard them?");}
-function setDirty(next){dirty=next;if(next)status("Unsaved changes — select Save to store them.","pending");}
-function reset(){epoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];dirty=false;root.hidden=true;root.replaceChildren();}
+function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
+function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceDirty(){return dirty;}
-export async function openPrivateCourse(client,user,id){
+export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}){
  if(!uuidRE.test(id))throw new Error("Invalid course ID.");
- const call=++epoch;api=client;owner=user;root.hidden=false;root.innerHTML='<p role="status">Loading your saved course…</p>';
+ // Never replace a teacher's unsubmitted form. The auth client can refresh in
+ // another browser tab at any time, including while this request is in flight.
+ if(dirty && !discardUnsaved){
+  status("Unsaved changes preserved. Save or explicitly discard before loading newer records.","pending");
+  return false;
+ }
+ if(dirty && discardUnsaved){dirty=false;editEpoch++;}
+ const call=++epoch,editAtStart=editEpoch;
+ api=client;owner=user;root.hidden=false;
+ const sameCourse=course?.id===id;
+ if(sameCourse)status("Checking saved records…");
+ else root.innerHTML='<p role="status">Loading your saved course…</p>';
  const [c,u,l,e]=await Promise.all([
-  api.from("courses").select("*").eq("id",id).single(),
-  api.from("units").select("*").eq("course_id",id).order("position"),
-  api.from("lessons").select("*").eq("course_id",id).order("position"),
-  api.from("calendar_exceptions").select("*").eq("course_id",id).order("date")
+  client.from("courses").select("*").eq("id",id).single(),
+  client.from("units").select("*").eq("course_id",id).order("position"),
+  client.from("lessons").select("*").eq("course_id",id).order("position"),
+  client.from("calendar_exceptions").select("*").eq("course_id",id).order("date")
  ]);
- if(call!==epoch)return;
+ if(call!==epoch)return false;
+ // An edit made after the request started must take priority over its reply.
+ if(dirty || editEpoch!==editAtStart){
+  status("Unsaved changes preserved. The saved version can be reloaded after you save or discard your draft.","pending");
+  return false;
+ }
  const firstError=[c.error,u.error,l.error,e.error].find(Boolean);
- if(firstError){root.replaceChildren();root.textContent="Unable to open private course: "+firstError.message;return;}
- if(!c.data || c.data.owner_id!==user.id){root.textContent="Course unavailable for this account.";return;}
+ if(firstError){if(sameCourse)status("Reload failed; current editor preserved: "+firstError.message,"error");else{root.replaceChildren();root.textContent="Unable to open private course: "+firstError.message;}return false;}
+ if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else root.textContent="Course unavailable for this account.";return false;}
  course=c.data;units=u.data||[];lessons=l.data||[];exceptions=e.data||[];
  if(!units.some(x=>x.id===selectedUnit))selectedUnit=units[0]?.id||null;
  if(!lessons.some(x=>x.id===selectedLesson))selectedLesson=lessons[0]?.id||null;
  dirty=false;render();
  status("Loaded from private cloud storage.","saved");
+ return true;
 }
 function render(){
  if(!course)return;
@@ -73,7 +90,7 @@ function render(){
  const nav=[["sequence","Course Sequence"],["units","Unit Planning"],["lessons","Lesson Planning"],["calendar","Calendar & Exceptions"]]
   .map(([k,name])=>'<button type="button" data-private-tab="'+k+'" aria-pressed="'+(tab===k)+'">'+name+'</button>').join("");
  root.innerHTML='<div class="private-header"><div><p class="private-kicker">SAVED WORKSPACE · PRIVATE ACCOUNT</p><h2>'+escapeHtml(course.name)+'</h2><p>'+units.length+' unit(s) · '+lessons.length+' lesson(s) · '+exceptions.length+' calendar exception(s)</p></div><button data-private-export type="button">Export course JSON</button></div>'+
- '<nav class="private-nav" aria-label="Private planning workspaces">'+nav+'</nav>'+
+ '<nav class="private-nav" aria-label="Private planning workspaces">'+nav+'<button type="button" data-private-reload>Reload saved data</button></nav>'+
  '<p id="private-status" role="status" aria-live="polite">Loaded from private cloud storage.</p>'+
  '<div class="private-content">'+(tab==="sequence"?renderSequence():tab==="units"?renderUnits(currentUnit):tab==="lessons"?renderLessons(currentLesson):renderCalendar())+'</div>';
 }
@@ -116,12 +133,16 @@ function exportCourse(){
  link.href=url;link.download="course-planner-"+course.id+".json";document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
  status("Export created from your last retrieved saved records. This is not an automated backup.","saved");
 }
-root.addEventListener("input",e=>{if(e.target.closest("form[data-private-save]"))setDirty(true);});
+root.addEventListener("input",e=>{if(e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);});
 root.addEventListener("click",async e=>{
  const button=e.target.closest("button");if(!button)return;
  if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;dirty=false;render();}
  else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;tab="lessons";dirty=false;render();}
  else if(button.matches("[data-private-export]"))exportCourse();
+ else if(button.matches("[data-private-reload]")){
+  if(dirty && !confirm("Discard your unsaved edits and reload saved course data?"))return;
+  await openPrivateCourse(api,owner,course.id,{discardUnsaved:true});
+ }
 });
 root.addEventListener("change",e=>{
  if(e.target.matches("[data-private-select-unit]")){if(!canNavigate()){e.target.value=selectedUnit;return;}selectedUnit=e.target.value;dirty=false;render();}
@@ -135,6 +156,7 @@ root.addEventListener("submit",async e=>{
   const table=form.dataset.privateSave||form.dataset.privateCreate;
   if(!["units","lessons"].includes(table))throw new Error("Unknown record type");
   let result;
+  const submittedEditEpoch=editEpoch;
   if(form.dataset.privateSave){
    const record=(table==="units"?units:lessons).find(x=>x.id===form.dataset.id);
    if(!record)throw new Error("Record was not found.");
@@ -152,8 +174,13 @@ root.addEventListener("submit",async e=>{
    if(!result.error && result.data){if(table==="units")selectedUnit=result.data.id;else selectedLesson=result.data.id;}
   }
   if(result.error)throw new Error(result.error.message);
-  await openPrivateCourse(api,owner,course.id);
-  status("Saved and verified by reloading your private course records.","saved");
+  if(editEpoch!==submittedEditEpoch){
+   status("Submitted changes saved, but newer unsaved edits were kept in this form. Save those separately.","pending");
+   return;
+  }
+  dirty=false;
+  const reopened=await openPrivateCourse(api,owner,course.id);
+  if(reopened)status("Saved and verified by reloading your private course records.","saved");
  }catch(err){status("Save failed: "+err.message,"error");}
  finally{if(btn.isConnected)btn.disabled=false;}
 });
