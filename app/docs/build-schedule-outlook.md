@@ -129,7 +129,9 @@ COURSE_PLANNER_CALENDAR_FIXTURE=app/reviews/calendar-event-effect-preview/stored
 /Users/aidevelopment/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node app/tests/calendar.browser.mjs
 ```
 
-Desktop/mobile browser results: in progress. The complete existing suite is retained;
+**461 full desktop/mobile browser checks passed, 0 uncaught errors.**
+A final focused outlook run passed **161 checks**, including Escape with focus on
+calendar controls outside the configuration panel. The complete existing suite is retained;
 new small/80-lesson Build scenarios cover the three tiers, 2/4/6-week choices,
 layers, explicit start/scope, stale configuration/reload/course switch, keyboard
 focus/Escape, saved-only reset, no preview writes, same-ID navigation, unchanged
@@ -146,14 +148,34 @@ Auth, JSON/ZIP/restore, authoring conflict, dirty guard and archive tests are re
 The local browser substitutes only the Supabase SDK boundary; its intentional
 save/restore regressions write to a fictional in-memory test client, never Supabase.
 
-Hosted signed-in acceptance: pending the exact draft PR deployment/session.
-No email requests, new Auth privileges, token copying or saved scheduling writes
-are authorized by this issue. If an authenticated session is unavailable, report
-pending; do not substitute a different branch's signed-in test. Any hosted read-only
-acceptance must compare full saved-record signatures/counts before and after.
+## Draft preview and hosted acceptance
+
+Draft PR: https://github.com/jmichaeldinardo-spec/Course-Planner/pull/6
+
+Exact app branch preview:
+https://course-planner-app-git-codex-build-schedu-45cd1a-course-planner.vercel.app/
+
+Application commit: `32bc761f20e18c500950f633b9e34ca7020cfa75`.
+GitHub app-tests and Vercel preview checks pass. Vercel deployment
+`dpl_6JudDHj3iNX2dkkBckEujmeFmeVP` is READY on that branch/commit, with the exact
+branch alias above, no alias error and preview target (not production).
+
+Hosted signed-in acceptance remains pending. Opening Chrome timed out while
+creating a tab, leaving it blank. The browser security gate then rejected access
+to that invalid blank URL. No workaround or alternate browser surface was used;
+the user was asked to open the exact valid preview and report whether Saved courses
+is visible. No sign-in email, Auth configuration/privilege change or token copying
+was attempted. A new branch origin must not be assumed to share another branch's
+Supabase session. Vercel READY and local tests are not hosted signed-in acceptance.
+
+If an authenticated session is unavailable, keep this acceptance pending; do not
+substitute a different branch's signed-in test. Any completed hosted read-only pass
+must compare full saved-record signatures/counts before and after. No live
+Supabase query, schema or saved-data write has been performed for this prototype.
 
 Evidence belongs only in Git-excluded `app/reviews/build-schedule-outlook/`:
-local browser results, synthetic/stored fixture screenshots and existing-demo output.
+full browser-results.json (461 checks), focused-final-summary.json (161 checks),
+node-tests.txt, synthetic/stored fixture screenshots and existing-demo output.
 No private snapshots, owner IDs or screenshots are committed or uploaded with the PR.
 
 ## Product questions for hands-on review
