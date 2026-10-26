@@ -36,3 +36,12 @@ test("private course exports all related records; demo remains explicitly unsave
  assert.match(workspace,/JSON\.stringify\(json,null,2\)/);
  assert.match(app,/fictional curriculum/);
 });
+
+test("six digit email code can be verified without magic link redirects",()=>{
+ assert.match(app,/id="auth-otp-form"/);
+ assert.match(app,/id="auth-otp-email"/);
+ assert.match(app,/id="auth-otp-code"/);
+ assert.match(auth,/client\.auth\.verifyOtp\(\{email,token,type:"email"\}\)/);
+ assert.match(auth,/\^\[0-9\]\{6\}\$/);
+ assert.match(auth,/otpDetails\.hidden=!!user/);
+});
