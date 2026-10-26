@@ -9,11 +9,11 @@ import {resolve,dirname,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {buildCalendarModel,addCalendarDays} from '../calendar-model.js';
-import {scheduleFixture,fullyScheduled80Fixture,id as previewId} from './fixtures/scheduling-scenarios.mjs';
+import {scheduleFixture,fullyScheduled80Fixture,buildOutlookFixture,id as previewId} from './fixtures/scheduling-scenarios.mjs';
 const require=createRequire(import.meta.url);
 const {chromium}=require('playwright');
 const app=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const out=resolve(app,'reviews/calendar-event-effect-preview/hosted-acceptance');await mkdir(out,{recursive:true});
+const out=resolve(app,'reviews/build-schedule-outlook');await mkdir(out,{recursive:true});
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const course={id:id(1),owner_id:id(2),name:'Fictional Civic Systems — browser acceptance',first_day:'2026-09-01',last_day:'2027-01-29',teaching_weekdays:[1,2,3,4,5],timezone:'America/New_York',revision:1};
 const units=Array.from({length:5},(_,i)=>({id:id(10+i),course_id:course.id,title:'Fictional Unit '+(i+1),position:i+1,target_days:18,revision:1}));
@@ -134,6 +134,64 @@ async function verifyCompleteOrPartial(page,width,prefix,fixture,partial=false){
  check(prefix+' no preview writes',await page.evaluate(()=>window.testWrites.length===0));
  await page.locator('[data-private-calendar-view="week"]').click();check(prefix+' Week retained',await page.locator('.saved-agenda>.saved-calendar-day').count()===7);
 }
+async function verifyOutlookInterface(page,width,prefix,fixture){
+ let original=await page.evaluate(()=>JSON.stringify(window.testDb));
+ const open=async()=>{await page.locator('[data-outlook-open]').click();};
+ const submit=async()=>{await page.locator('[data-build-schedule-form] button[type="submit"]').click();};
+ const build=async()=>{await open();await page.locator('[data-outlook-use-focus]').click();await submit();};
+ check(prefix+' default four-week focus horizon',await page.locator('[data-outlook-weeks]').inputValue()==='4'&&(await page.locator('.outlook-window').innerText()).includes(fixture.course.first_day));
+ check(prefix+' all three textual certainty tiers',await page.locator('.outlook-legend > span').count()===3);
+ await open();check(prefix+' Build configuration receives keyboard focus',await page.locator('#build-config-title').evaluate(e=>e===document.activeElement));
+ check(prefix+' anchor is explicit and initially blank',await page.locator('[data-build-schedule-form] [name="startDate"]').inputValue()==='');
+ await page.locator('[data-outlook-use-focus]').click();check(prefix+' Use selected date is an explicit anchor action',await page.locator('[data-build-schedule-form] [name="startDate"]').inputValue()===fixture.course.first_day);
+ await submit();check(prefix+' Build result is unsaved and focused',(await page.locator('#build-schedule-title').innerText()).includes('ready to inspect')&&await page.locator('#build-schedule-title').evaluate(e=>e===document.activeElement));
+ check(prefix+' whole-course capacity is always disclosed',(await page.locator('[data-build-result]').innerText()).includes('Whole-course capacity · all active units'));
+ check(prefix+' near-term forecast reaches calendar',await page.locator('.saved-day-events [data-tentative-placement]').count()>0);
+ check(prefix+' no writing action in prototype',await page.locator('.planning-outlook').getByRole('button',{name:/^(Apply|Save|Confirm)$/}).count()===0);
+ await page.locator('.outlook-milestones summary').click();check(prefix+' estimated unit milestones visible',(await page.locator('.outlook-milestones').innerText()).includes('estimated — unsaved'));
+ check(prefix+' saved protected assessment stays distinct',(await page.locator('.outlook-milestones').innerText()).includes('protected saved anchor'));
+ await page.locator('.planning-outlook').screenshot({path:resolve(out,prefix+'-three-tier-proposal.png')});
+ await page.locator('.saved-calendar-layout').screenshot({path:resolve(out,prefix+'-month-overlay.png')});
+ for(const weeks of [2,6,4]){
+  await page.locator('[data-outlook-weeks]').selectOption(String(weeks));
+  const end=addCalendarDays(fixture.course.first_day,weeks*7-1);
+  check(prefix+' '+weeks+' week horizon is selected-date anchored',(await page.locator('.outlook-window').innerText()).includes(end));
+  check(prefix+' no distant daily clutter at '+weeks+' weeks',await page.locator('.saved-calendar-day').evaluateAll((nodes,end)=>nodes.every(n=>!n.querySelector('[data-tentative-placement]')||n.querySelector('[data-private-calendar-day]').dataset.privateCalendarDay<=end),end));
+ }
+ const forecastDate=await page.locator('.saved-calendar-day').filter({has:page.locator('[data-tentative-placement]')}).first().locator('[data-private-calendar-day]').getAttribute('data-private-calendar-day');
+ await page.locator('[data-private-calendar-day="'+forecastDate+'"]').first().click();
+ check(prefix+' mobile/desktop day detail explicitly labels tentative unsaved work',(await page.locator('#saved-day-details').innerText()).includes('Tier 2 · Tentative — unsaved'));
+ check(prefix+' selected forecast date retains keyboard focus',await page.locator('[data-private-calendar-day="'+forecastDate+'"]').first().evaluate(e=>e===document.activeElement));
+ await page.locator('[data-outlook-layer="tentative"]').uncheck();check(prefix+' tentative layer hides reversibly',await page.locator('[data-tentative-placement]').count()===0);
+ await page.locator('[data-outlook-layer="tentative"]').check();check(prefix+' tentative layer restores',await page.locator('[data-tentative-placement]').count()>0);
+ await page.locator('[data-outlook-layer="confirmed"]').uncheck();check(prefix+' confirmed visibility does not rewrite its saved arrays',await page.evaluate(original=>JSON.stringify(window.testDb)===original,original));
+ await page.locator('[data-outlook-layer="confirmed"]').check();
+ await page.locator('[data-outlook-layer="milestones"]').uncheck();check(prefix+' milestone layer hides',await page.locator('.outlook-milestones').count()===0);await page.locator('[data-outlook-layer="milestones"]').check();
+ await page.locator('[data-private-calendar-view="week"]').click();check(prefix+' Week supports same tentative layer',await page.locator('.saved-agenda [data-tentative-placement]').count()>0);
+ const sharedId=await page.locator('.saved-day-events [data-tentative-placement] [data-private-lesson]').first().getAttribute('data-private-lesson');
+ await page.locator('.saved-day-events [data-tentative-placement] [data-private-lesson]').first().click();check(prefix+' tentative link opens same saved lesson',await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===sharedId);
+ await page.locator('[data-private-tab="calendar"]').click();check(prefix+' leaving Calendar discards forecast',await page.locator('[data-build-result]').count()===0&&await page.locator('[data-tentative-placement]').count()===0);
+ await page.locator('[data-private-calendar-view="month"]').click();await build();
+ await page.locator('[data-build-schedule-form] [name="startDate"]').fill(addCalendarDays(await page.locator('[data-build-schedule-form] [name="startDate"]').inputValue(),1));check(prefix+' configuration edit discards old result and overlays',await page.locator('[data-build-result]').count()===0&&await page.locator('[data-tentative-placement]').count()===0);
+ await page.locator('[data-outlook-use-focus]').click();await submit();await page.locator('[data-build-schedule-form] [name="unitId"]').selectOption(fixture.units[0].id);check(prefix+' scope change invalidates whole-course forecast',await page.locator('[data-build-result]').count()===0);await submit();check(prefix+' focused unit retains whole-course capacity context',(await page.locator('[data-build-result]').innerText()).includes('Whole-course capacity · all active units'));
+ const externallyChanged=JSON.parse(original);externallyChanged.units[0].revision++;original=JSON.stringify(externallyChanged);
+ await page.evaluate(()=>{window.testDb.units[0].revision++;window.testAuthEvent('TOKEN_REFRESHED');});
+ await page.locator('[data-build-result]').waitFor({state:'detached'});
+ check(prefix+' authoritative background refresh discards stale forecast',(await page.locator('.planning-outlook').innerText()).includes('Saved inputs changed'));
+ await build();await page.locator('[data-private-reload]').click();check(prefix+' reload discards all forecast state',await page.locator('[data-build-result]').count()===0&&await page.locator('[data-build-schedule-form]').count()===0&&(await page.locator('.planning-outlook').innerText()).includes('Saved data reloaded'));
+ await build();await page.locator('[data-event-open=""]').click();check(prefix+' event proposal remains separate and discards Build forecast',await page.locator('[data-event-preview-form]').count()===1&&await page.locator('[data-build-result]').count()===0&&await page.locator('[data-tentative-placement]').count()===0);
+ await page.locator('[data-event-preview-form]').getByRole('button',{name:'Cancel proposal',exact:true}).click();await build();await page.locator('[data-outlook-saved-only]').click();
+ check(prefix+' Saved-only restores confirmed layer and closes forecasts',await page.locator('[data-outlook-layer="confirmed"]').isChecked()&&!(await page.locator('[data-outlook-layer="tentative"]').isChecked())&&!(await page.locator('[data-outlook-layer="milestones"]').isChecked())&&await page.locator('[data-build-result]').count()===0);
+ await open();await page.locator('[data-private-calendar-day]').first().press('Escape');check(prefix+' Escape from calendar cancels and restores Build focus',await page.locator('[data-build-schedule-form]').count()===0&&await page.locator('[data-outlook-open]').evaluate(e=>e===document.activeElement));
+ check(prefix+' desktop/mobile no overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ check(prefix+' all new controls perform zero writes',await page.evaluate(()=>window.testWrites.length===0));
+ check(prefix+' controls preserve records apart from deliberate external revision',await page.evaluate(original=>JSON.stringify(window.testDb)===original,original));
+ const downloaded=page.waitForEvent('download');await page.locator('[data-private-export]').click();const json=JSON.parse(await readFile(await (await downloaded).path(),'utf8'));check(prefix+' export excludes hypothetical data',JSON.stringify(json.lessons)===JSON.stringify(fixture.lessons)&&JSON.stringify(json.calendarExceptions)===JSON.stringify(fixture.exceptions));
+ // Switch to another owner-scoped fictional course without creating a real row.
+ await page.evaluate(({id})=>{window.testDb.courses.push({...window.testDb.courses[0],id,name:'Another fictional preview course'});window.testAuthEvent('TOKEN_REFRESHED');},{id:previewId(888)});
+ await page.locator('[data-private-open="'+previewId(888)+'"]').waitFor();await page.locator('[data-private-open="'+previewId(888)+'"]').click();await page.locator('[data-private-tab="calendar"]').click();
+ check(prefix+' course switch has no old proposal or layer preferences',await page.locator('[data-build-result]').count()===0&&await page.locator('[data-outlook-weeks]').inputValue()==='4'&&await page.locator('[data-outlook-layer="tentative"]').isChecked());
+}
 const server=createServer(async(req,res)=>{
  try{const path=resolve(app,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
   if(!path.startsWith(app+'/')&&path!==app)throw Error('Invalid path');
@@ -145,7 +203,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser;
 try{
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
- for(const [fixtureName,fixture] of [['preview',scheduleFixture()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])]){
+ for(const [fixtureName,fixture] of [['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
   const expected=buildCalendarModel(fixture);
   for(const width of [1440,390]){
    const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true});context.setDefaultTimeout(20000);
@@ -199,6 +257,7 @@ try{
    await page.locator('[data-private-tab="calendar"]').click();
    await page.locator('.saved-month').waitFor();
    const prefix=`${fixtureName}-${width}`;
+   if(fixtureName.startsWith('outlook')){await verifyOutlookInterface(page,width,prefix,fixture);await context.close();continue;}
    if(fixtureName==='preview'){await verifyPreviewInterface(page,width,prefix,fixture);await context.close();continue;}
    if(fixtureName==='complete-80'||fixtureName==='partial'){await verifyCompleteOrPartial(page,width,prefix,fixture,fixtureName==='partial');await context.close();continue;}
    const hiddenLessons=archivedRecords(fixture);
@@ -208,6 +267,13 @@ try{
     check(prefix+' '+view+' excludes archived unit pacing',fixture.units.filter(u=>u.archived_at!=null).every(u=>!content.includes(u.title)));
    }
    await checkArchives('Month');
+   if(fixtureName==='stored-fictional'){
+    await page.locator('[data-outlook-open]').click();await page.locator('[data-outlook-use-focus]').click();await page.locator('[data-build-schedule-form] button[type="submit"]').click();
+    check(prefix+' incomplete 80-lesson Build is honest',(await page.locator('[data-build-result]').innerText()).includes('6 already unscheduled')&&(await page.locator('[data-build-result]').innerText()).includes('unresolved work'));
+    check(prefix+' Build never shifts saved dates',await page.locator('[data-build-result] [data-build-row]').evaluateAll(rows=>rows.filter(r=>r.querySelector('dd').textContent!=='Unscheduled — saved').every(r=>r.querySelectorAll('dd')[0].textContent===r.querySelectorAll('dd')[1].textContent)));
+    check(prefix+' impossible baseline has no fabricated overlay',await page.locator('[data-tentative-placement]').count()===0);
+    await page.locator('.planning-outlook').screenshot({path:resolve(out,prefix+'-incomplete-build.png')});await page.locator('[data-outlook-close]').last().click();
+   }
    await page.locator('[data-event-open=""]').click();await page.locator('[data-event-preview-form] [name="title"]').fill('Fictional 80-lesson preview probe');await page.locator('[data-event-preview-form] button[type="submit"]').click();
    check(prefix+' large-course blocked baseline is explicit',(await page.locator('#scheduling-preview-title').innerText()).includes(fixtureName==='stored-fictional'?'Partial preview — overall blocked':'Blocked preview'));
    if(fixtureName==='stored-fictional')check(prefix+' stored incomplete boundary disclosed',(await page.locator('[aria-labelledby="scheduling-preview-title"]').innerText()).includes('not assessed')) ;

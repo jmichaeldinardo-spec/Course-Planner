@@ -1,3 +1,5 @@
+import {buildSchedule,planningOutlook} from './build-schedule.js';
+import {renderPlanningOutlook,defaultOutlookPreferences} from './planning-outlook-view.js';
 import {EVENT_TYPES,normalizeEvent} from "./event-effects.js";
 import {previewSchedulingEvent,schedulingSnapshotToken} from "./scheduling-preview.js";
 import {renderSchedulingPreview} from "./scheduling-preview-view.js";
@@ -34,6 +36,10 @@ const lessonFields = [
 ];
 let api=null, owner=null, course=null, units=[],lessons=[],exceptions=[],selectedUnit=null,selectedLesson=null,tab="sequence",dirty=false,epoch=0,editEpoch=0;
 let calendarState=null,eventDraft=null,eventPreview=null;
+const newOutlookState=()=>({preferences:defaultOutlookPreferences(),draft:null,result:null,notice:''});
+let outlookState=newOutlookState();
+function discardOutlook(close=false,notice=''){outlookState.result=null;if(close)outlookState.draft=null;outlookState.notice=notice;}
+
 function status(message,kind="info"){const e=$("private-status");if(e){e.textContent=message;e.dataset.kind=kind;}}
 function field([name,label,type,options],value){
  const text=escapeHtml(value??"");
@@ -49,7 +55,7 @@ function formValues(form,fields){const f=new FormData(form),out={};
 }
 function canNavigate(){return !dirty || confirm("Your current changes are not saved. Discard them?");}
 function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
-function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceDirty(){return dirty;}
@@ -82,6 +88,9 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}
  const firstError=[c.error,u.error,l.error,e.error].find(Boolean);
  if(firstError){if(sameCourse)status("Reload failed; current editor preserved: "+firstError.message,"error");else{root.replaceChildren();root.textContent="Unable to open private course: "+firstError.message;}return false;}
  if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else root.textContent="Course unavailable for this account.";return false;}
+ const nextRecords={course:c.data,units:u.data||[],lessons:l.data||[],exceptions:e.data||[]};
+ if(!sameCourse)outlookState=newOutlookState();
+ else if((outlookState.result||outlookState.draft)&&schedulingSnapshotToken(nextRecords)!==schedulingSnapshotToken(calendarRecords()))discardOutlook(true,'Saved inputs changed. The old Build forecast was discarded; build again.');
  course=c.data;units=u.data||[];lessons=l.data||[];exceptions=e.data||[];
  if(!sameCourse){eventDraft=null;eventPreview=null;}
  if(sameCourse&&eventDraft&&eventPreview)eventPreview=previewSchedulingEvent({course,units,lessons,exceptions},eventDraft);
@@ -133,13 +142,18 @@ function renderLessons(current){
  return '<p>Lesson details and Course Sequence refer to the same saved lesson record. Blank fields are optional.</p>'+existing+create;
 }
 function calendarRecords(){return {course,units,lessons,exceptions};}
-function renderCalendar(){return renderSavedCalendar(calendarRecords(),calendarState)+renderSchedulingPreview(calendarRecords(),eventDraft,eventPreview);}
+function renderCalendar(){
+ const records=calendarRecords(),outlook=planningOutlook(records,outlookState.result,{focusDate:calendarState.selected,weeks:outlookState.preferences.weeks});
+ return renderPlanningOutlook(records,outlookState,outlook)+renderSavedCalendar(records,calendarState,{confirmed:outlookState.preferences.confirmed,byDate:outlookState.preferences.tentative?outlook.byDate:{}})+renderSchedulingPreview(records,eventDraft,eventPreview);
+}
+function readBuildDraft(form){const values=new FormData(form);return {...outlookState.draft,startDate:String(values.get('startDate')||''),unitId:String(values.get('unitId')||'')||null};}
 function readEventDraft(form){
  const values=new FormData(form);return {...eventDraft,...Object.fromEntries(["title","date","eventType","availability","effect","notes"].map(key=>[key,String(values.get(key)??eventDraft[key]??"")]))};
 }
 function closeEventPreview(){eventDraft=null;eventPreview=null;renderWithFocus('[data-event-open=""]');}
 function openEventPreview(id){
  if(!canNavigate())return;
+ discardOutlook(true,'Build forecast discarded while exploring a separate event proposal.');
  const event=id?exceptions.find(e=>e.id===id):null;if(id&&!event){status("Event no longer available; reload saved data.","error");return;}
  const normalized=event?normalizeEvent(event):null;
  eventDraft={eventId:event?.id||null,title:event?.title||"",date:event?.date||calendarState.selected,eventType:event?(event.event_type??"Legacy / unspecified"):"Closure",availability:normalized?.availability||"closed",effect:normalized?.effect||"Move",notes:event?.notes||"",closedDateConstraint:normalized?.availability==="closed",expectedSnapshot:schedulingSnapshotToken(calendarRecords())};
@@ -152,6 +166,7 @@ function selectCalendarDay(date){
  renderWithFocus('[data-private-calendar-day="'+date+'"]');
 }
 root.addEventListener("keydown",e=>{
+ if(e.key==='Escape'&&tab==='calendar'&&(outlookState.draft||outlookState.result)){e.preventDefault();discardOutlook(true);renderWithFocus('[data-outlook-open]');return;}
  if(e.key==="Escape"&&eventDraft&&e.target.closest('.event-preview-panel')){e.preventDefault();closeEventPreview();return;}
  const date=e.target.dataset?.privateCalendarDay;if(!date||tab!=="calendar")return;
  const offsets={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7,Home:0,End:6};
@@ -167,12 +182,21 @@ function exportCourse(){
  status("Export created from your last retrieved saved records. This is not an automated backup.","saved");
 }
 root.addEventListener("input",e=>{
+ const buildForm=e.target.closest('[data-build-schedule-form]');
+ if(buildForm&&outlookState.draft){const hadResult=!!outlookState.result;outlookState.draft=readBuildDraft(buildForm);discardOutlook(false,'Preview configuration changed. Build again to see current hypothetical dates.');if(hadResult)renderWithFocus('[data-build-schedule-form] [name="'+e.target.name+'"]');return;}
  if(e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);
  const form=e.target.closest("[data-event-preview-form]");if(form&&eventDraft){eventDraft=readEventDraft(form);eventPreview=null;const stale=root.querySelector('[aria-labelledby="scheduling-preview-title"]');if(stale)stale.hidden=true;}
 });
 root.addEventListener("click",async e=>{
  const button=e.target.closest("button");if(!button)return;
- if(button.matches("[data-event-open]")){openEventPreview(button.dataset.eventOpen);}
+ if(button.matches('[data-outlook-open]')){
+  if(!canNavigate())return;eventDraft=null;eventPreview=null;
+  outlookState.draft={startDate:'',unitId:null,expectedSnapshot:schedulingSnapshotToken(calendarRecords())};discardOutlook();renderWithFocus('#build-config-title');
+ }
+ else if(button.matches('[data-outlook-close]')){discardOutlook(true);renderWithFocus('[data-outlook-open]');}
+ else if(button.matches('[data-outlook-use-focus]')){if(!outlookState.draft)return;outlookState.draft.startDate=calendarState.selected;discardOutlook();renderWithFocus('[data-build-schedule-form] [name="startDate"]');}
+ else if(button.matches('[data-outlook-saved-only]')){discardOutlook(true);outlookState.preferences={...outlookState.preferences,confirmed:true,tentative:false,milestones:false};renderWithFocus('[data-outlook-saved-only]');}
+ else if(button.matches("[data-event-open]")){openEventPreview(button.dataset.eventOpen);}
  else if(button.matches("[data-event-close]")){closeEventPreview();}
  else if(button.matches("[data-private-calendar-day]")){selectCalendarDay(button.dataset.privateCalendarDay);}
  else if(button.matches("[data-private-calendar-view]")){
@@ -185,15 +209,19 @@ root.addEventListener("click",async e=>{
   calendarState.anchor=date;calendarState.selected=date;dirty=false;
   renderWithFocus('[data-private-calendar-period="'+step+'"]');
  }
- else if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;if(tab!=="calendar"){eventDraft=null;eventPreview=null;}dirty=false;render();}
- else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;eventDraft=null;eventPreview=null;tab="lessons";dirty=false;renderWithFocus('[data-private-save="lessons"] input[name="title"]');}
+ else if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;if(tab!=="calendar"){eventDraft=null;eventPreview=null;discardOutlook(true);}dirty=false;render();}
+ else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;eventDraft=null;eventPreview=null;discardOutlook(true);tab="lessons";dirty=false;renderWithFocus('[data-private-save="lessons"] input[name="title"]');}
  else if(button.matches("[data-private-export]"))exportCourse();
  else if(button.matches("[data-private-reload]")){
   if(dirty && !confirm("Discard your unsaved edits and reload saved course data?"))return;
+  discardOutlook(true,'Saved data reloaded. Build again to inspect a fresh forecast.');
   await openPrivateCourse(api,owner,course.id,{discardUnsaved:true});
  }
 });
 root.addEventListener("change",e=>{
+ if(e.target.matches('[data-outlook-weeks]')){const weeks=Number(e.target.value);if([2,4,6].includes(weeks))outlookState.preferences.weeks=weeks;renderWithFocus('[data-outlook-weeks]');return;}
+ if(e.target.matches('[data-outlook-layer]')){const key=e.target.dataset.outlookLayer;if(['confirmed','tentative','milestones'].includes(key))outlookState.preferences[key]=e.target.checked;renderWithFocus('[data-outlook-layer="'+key+'"]');return;}
+ const buildForm=e.target.closest('[data-build-schedule-form]');if(buildForm&&outlookState.draft){outlookState.draft=readBuildDraft(buildForm);discardOutlook(false,'Preview configuration changed. Build again to see current hypothetical dates.');renderWithFocus('[data-build-schedule-form] [name="'+e.target.name+'"]');return;}
  const eventForm=e.target.closest("[data-event-preview-form]");
  if(eventForm&&eventDraft){
   eventDraft=readEventDraft(eventForm);eventPreview=null;
@@ -207,6 +235,10 @@ root.addEventListener("change",e=>{
 });
 root.addEventListener("submit",async e=>{
  const form=e.target.closest("form");if(!form)return;e.preventDefault();
+ if(form.matches('[data-build-schedule-form]')){
+  if(!outlookState.draft||tab!=='calendar')return;
+  outlookState.draft=readBuildDraft(form);outlookState.result=buildSchedule(calendarRecords(),outlookState.draft);outlookState.notice='';renderWithFocus('#build-schedule-title');return;
+ }
  if(form.matches("[data-event-preview-form]")){
   if(!eventDraft||tab!=="calendar")return;eventDraft=readEventDraft(form);eventPreview=previewSchedulingEvent(calendarRecords(),eventDraft);renderWithFocus('#scheduling-preview-title');return;
  }
