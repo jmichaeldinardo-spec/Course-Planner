@@ -30,8 +30,10 @@ Branch: `pilot/calendar-event-effect-preview`, created from current
   while saved records/JSON/ZIPs remain intact.
 
 No live schema migration, scheduling RPC, event/date/pin/order write, main/marketing
-change, Sheet/Apps Script/CPD edit or production promotion is part of 2A. Auth,
-backup, restore, public demo assets, application HTML and config files are unchanged.
+change, Sheet/Apps Script/CPD edit or production promotion is part of 2A.
+The follow-up below fixes concurrent Auth refresh rendering; credential flow,
+backup, restore, public demo assets, application HTML and config source files are
+unchanged. The exact PR Auth redirect was separately approved and added.
 
 ## Automated acceptance
 
@@ -42,10 +44,12 @@ With its Node binary on PATH:
 cd app && node --test tests/*.test.mjs
 ```
 
-**71 tests passed, 0 failed, 0 skipped.** All 43 previous test cases are retained;
+**74 tests passed, 0 failed, 0 skipped.** All 43 previous test cases are retained;
 the earlier universal-uncertainty assertion for Replace/Continue was updated to
 DEC-027's newly approved semantics, while unknown effects still test uncertainty.
-New cases cover the three annotated scenarios; effective legacy values and raw
+Three additional Auth refresh regressions cover overlapping responses, sign-out/
+account changes, obsolete errors and dirty authoring protection. New scheduling
+cases cover the three annotated scenarios; effective legacy values and raw
 metadata; defaults/permissible override; genuinely closed dates (including event-
 type default changes); occupied-event contention; multi-day leap/DST/weekend
 allocation; protected assessments/full pinned arrays; soft preferences; all-or-
@@ -65,11 +69,14 @@ COURSE_PLANNER_CALENDAR_FIXTURE=app/reviews/calendar-event-effect-preview/stored
 /Users/aidevelopment/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node app/tests/calendar.browser.mjs
 ```
 
-**293 checks passed** at 1440px and 390px; **0 uncaught browser errors**. The actual
+**299 checks passed** at 1440px and 390px; **0 uncaught browser errors**. The actual
 app modules are served by a loopback-only server. Only the Supabase SDK network
 boundary is substituted with an owner-scoped test client; no real credentials or
 sessions are read. The optional stored fixture can be omitted for synthetic-only
 runs. These checks use local browser fixtures. Hosted acceptance is recorded separately below.
+A controlled three-request Auth race is also exercised at both widths: startup,
+INITIAL_SESSION and TOKEN_REFRESHED responses complete out of order, and each of
+three courses must appear exactly once without writes.
 
 Covered Add/Change event, type/effect defaults and permissible override, forbidden
 Keep and deferred Extend, full downstream date list, stale-result hiding,
@@ -87,7 +94,7 @@ HTML had `disabled`. The final check verifies the native `option.disabled` prope
 No constraint was weakened to make that test pass.
 
 ```sh
-COURSE_PLANNER_REVIEW_DIR=app/reviews/calendar-event-effect-preview/existing-demo \
+COURSE_PLANNER_REVIEW_DIR=app/reviews/calendar-event-effect-preview/hosted-acceptance/existing-demo \
 python3 app/tests/verify-demo-regression.py
 ```
 
@@ -178,36 +185,85 @@ no scheduling Apply action and zero mock REST/RPC writes. Full automated coverag
 still includes archived records, JSON restore, ZIP/hash and authoring conflicts.
 Evidence is in Git-excluded `app/reviews/calendar-event-effect-preview/review-correction/`.
 
-### Hosted signed-in acceptance — pending
+### Hosted signed-in acceptance — completed October 26
 
-The corrected application code is pushed at
-`b2ec75cd63edd01c709f406ff9c8758a66f68385`. GitHub `app-tests` and the Vercel
-`course-planner-app` preview check succeeded on that head. The branch preview URL is
-https://course-planner-app-git-pilot-calendar-eve-018d2d-course-planner.vercel.app/ .
+Tested application head: `85532363eac27e27dadef79bef02fc088e2f5f53`.
+GitHub `app-tests` and Vercel `course-planner-app` checks succeeded on this head.
+The later report-only commit does not change application code.
 
-The initial email sign-in reached the foundation preview; the exact PR #4 origin
-remained signed out after reload. A read-only inspection showed only foundation
-and PR #2 in the Auth redirect allowlist at that time. No authentication state was
-copied between origins and no redirect configuration was changed. The user then
-confirmed the PR URL and reported Supabase's email rate limit. At the user's
-request, further authenticated testing is deferred until the limit resets. A
-successful local fixture test or foundation login is not hosted PR acceptance.
+URL: https://course-planner-app-git-pilot-calendar-eve-018d2d-course-planner.vercel.app/ .
+The user completed sign-in on the exact PR origin using the designated
+collaboration account. Acceptance reused that existing browser session; no new
+email was requested and no authentication tokens were read or copied. The prior
+rate-limit/redirect acceptance blocker is resolved. With explicit user approval,
+the exact PR redirect had been added and verified after a dashboard reload; the
+foundation Site URL and both prior redirect entries were preserved without a
+wildcard. No Auth configuration was changed during this acceptance run.
 
-Resume by verifying the exact PR redirect is permitted, then use a fresh email
-link on the designated collaboration account after the rate limit resets. Recheck
-that the actual PR origin shows Saved courses before opening the existing fictional
-80-lesson course. Preview only: Keep on an instructional date, bounded Move before
-the incomplete boundary, protected commitments, missing-date disclosure,
-Cancel/Escape, same-ID navigation and Month/Week; compare saved records/revisions
-before and after. Do not restore the complete fixture or write any live schedule.
-The fully scheduled 80-lesson success is demonstrated locally, not claimed live.
+**21 hosted checks passed**, **0 captured browser errors**:
 
-SELECT-only owner-scoped read transactions before and after local verification
-returned identical full-record signatures for the course, units, 80 lessons and
-calendar events. This verifies those records were unchanged; it does not complete
-the pending hosted UI acceptance. Aggregate evidence is Git-excluded in
-`review-correction/read-only-verification.json`.
+- Exact PR origin remains signed in after reload; Saved courses reports three
+  courses and renders three distinct course IDs, once each, across two reloads.
+- Closure forbids Keep and Extend remains disabled. Preview panels expose no
+  scheduling Apply/Save/Confirm action.
+- Instructional Keep on Sep 10 assesses 15 complete leading lessons with unchanged
+  dates, preserves all 80 BEFORE rows and explicitly leaves 65 unassessed. Six
+  lessons remain already unscheduled. The overall proposal remains blocked.
+- Closure Move on Sep 22 discloses seven changed lessons and 14 assessed / 66
+  unassessed. The two-day lesson retains its complete proposed array (Oct 1–2).
+  The last lesson before the unresolved baseline is not assessed when its ripple
+  would cross Oct 2; no date is invented for that lesson or any later work.
+- The protected Sep 15 lesson retains its saved date. A closure on that date
+  reports a blocked commitment without moving the pin. Soft preferences remain
+  distinct from protected dates.
+- Editing the transient proposal hides the previous result. Close, Cancel and
+  Escape discard the proposal; Cancel/Escape restore the Add event focus.
+- The preview opens the same saved lesson ID in Lesson Planning without editing.
+  Legacy Change retains title/notes, normalizes No Lesson to closed Move and
+  discloses the raw BEFORE effect. Closing returns to the original saved Sep 22
+  placement. Month/Week, seven-day Week layout, keyboard date focus and desktop
+  overflow checks pass.
 
-The PR remains draft against `pilot/app-foundation`. No Phase 2B, schema or data
-writes, Auth changes, merge or production promotion were performed in this review
-correction. The pending hosted test is the remaining acceptance limitation.
+The actual stored course is intentionally incomplete. Hosted results therefore
+exercise bounded partial and protected-conflict outcomes, not a fictitious full
+80-lesson success. The fully scheduled 80-lesson success remains a local synthetic
+fixture; it was not restored into Supabase.
+
+SELECT-only owner-scoped READ ONLY transactions with ROLLBACK before and after
+acceptance returned identical full-record signatures for all **3 courses, 7 units,
+82 lessons and 12 calendar events** visible to the owner. No saved records were
+created, edited, deleted, restored or scheduled. These checks cover public course
+records; the normal existing Auth session may refresh through the SDK.
+
+Evidence is Git-excluded under
+`app/reviews/calendar-event-effect-preview/hosted-acceptance/`:
+`browser-results.json` (299 local checks), `hosted-browser-results.json` (21 hosted
+checks), `hosted-read-verification.json`, Keep/Move/protected-conflict/Week/course-list
+screenshots and the existing-demo output. Captures contain no authentication tokens.
+
+### Saved-course duplicate rendering correction
+
+Startup refresh and multiple Auth notifications could overlap. Each invocation
+cleared the list before awaiting the course read, then appended its response.
+Three completions therefore rendered nine entries while each reported a count of
+three. This was a browser rendering race, not evidence of duplicate database rows.
+
+`auth.js` now uses a monotonic refresh generation checked after both session and
+course reads. Only the latest invocation can publish its session/list/status or
+start automatic workspace selection; its list replaces all children atomically.
+Obsolete responses and errors are ignored. The captured current user is used for
+automatic opening, while existing workspace epochs and dirty guards remain active.
+The Auth subscription still defers asynchronous work out of its callback.
+
+Three behavioral VM tests execute the real Auth module with delayed read responses.
+Against the previous source all three fail: nine rendered entries, old records
+reappearing after sign-out, and an obsolete network error replacing a newer signed-in
+status. Against the fix all pass. Two real-app browser race scenarios, one at each
+viewport, add six checks. Full suite totals are 74 Node / 299 app browser / 265 demo.
+No change to credentials, sign-in email behavior, database records, schema or
+scheduling policy was needed.
+
+PR #4 remains draft against `pilot/app-foundation`. No Phase 2B, merge or deployment
+promotion was performed. The existing product questions for initial scheduling,
+pin-span semantics, multi-day gaps/continuity and partial/period allocation remain
+review gates before scheduling writes.
