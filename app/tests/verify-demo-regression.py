@@ -7,9 +7,10 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import threading
+import os
 
 project = Path(__file__).resolve().parents[2]
-evidence = project / 'app/reviews/saved-calendar-phase1/existing-demo'
+evidence = project / os.environ.get('COURSE_PLANNER_REVIEW_DIR', 'app/reviews/saved-calendar-phase1/existing-demo')
 evidence.mkdir(parents=True, exist_ok=True)
 class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *_args):

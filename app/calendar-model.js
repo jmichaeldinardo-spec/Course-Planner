@@ -1,3 +1,4 @@
+import {normalizeEvent,eventDayState} from "./event-effects.js";
 /* Read-only projections of canonical saved records. Civil dates use UTC solely
  * for arithmetic: never parse a database DATE as an instant in the host zone. */
 export function isCalendarDate(value) {
@@ -62,16 +63,14 @@ export function buildCalendarModel({course,units=[],lessons=[],exceptions=[]}){
  for(const e of exceptionList){
   if(!isCalendarDate(e.date)){warn("exception-date",`Exception “${e.title}” has no valid saved date.`);continue;}
   day(e.date).exceptions.push(e);
-  if(e.effect!=="No Lesson")warn("ambiguous-effect",`“${e.title}”: ${e.effect||"missing effect"} — instructional capacity is uncertain; semantics require review.`,e.date);
+  if(normalizeEvent(e).errors.length)warn("ambiguous-effect",`“${e.title}”: ${e.effect||"missing effect"} — instructional capacity is uncertain; clarify event constraints.`,e.date);
  }
  function availability(date){
   if(!bounded||!validWeekdays)return "unknown";
   if(date<course.first_day||date>course.last_day)return "outside term";
   if(!weekdays.includes(calendarWeekday(date)))return "non-teaching weekday";
   const effects=days[date]?.exceptions||[];
-  if(effects.some(e=>e.effect==="No Lesson"))return "blocked";
-  if(effects.length)return "uncertain";
-  return "instructional";
+  return eventDayState(effects.map(e=>normalizeEvent(e)));
  }
  const instructionalDates=[],uncertainDates=[];
  if(bounded&&validWeekdays)for(let d=course.first_day;d<=course.last_day;d=addCalendarDays(d,1)){

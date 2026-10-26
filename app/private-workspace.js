@@ -1,3 +1,6 @@
+import {EVENT_TYPES,normalizeEvent} from "./event-effects.js";
+import {previewSchedulingEvent,schedulingSnapshotToken} from "./scheduling-preview.js";
+import {renderSchedulingPreview} from "./scheduling-preview-view.js";
 import {isCalendarDate,addCalendarDays,shiftCalendarMonth,weekStart,todayInCourse,activeCalendarRecords} from "./calendar-model.js";
 import {renderSavedCalendar} from "./calendar-view.js";
 
@@ -30,7 +33,7 @@ const lessonFields = [
  ["textbook_map_item","Textbook map item","text"]
 ];
 let api=null, owner=null, course=null, units=[],lessons=[],exceptions=[],selectedUnit=null,selectedLesson=null,tab="sequence",dirty=false,epoch=0,editEpoch=0;
-let calendarState=null;
+let calendarState=null,eventDraft=null,eventPreview=null;
 function status(message,kind="info"){const e=$("private-status");if(e){e.textContent=message;e.dataset.kind=kind;}}
 function field([name,label,type,options],value){
  const text=escapeHtml(value??"");
@@ -46,7 +49,7 @@ function formValues(form,fields){const f=new FormData(form),out={};
 }
 function canNavigate(){return !dirty || confirm("Your current changes are not saved. Discard them?");}
 function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
-function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceDirty(){return dirty;}
@@ -80,6 +83,8 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}
  if(firstError){if(sameCourse)status("Reload failed; current editor preserved: "+firstError.message,"error");else{root.replaceChildren();root.textContent="Unable to open private course: "+firstError.message;}return false;}
  if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else root.textContent="Course unavailable for this account.";return false;}
  course=c.data;units=u.data||[];lessons=l.data||[];exceptions=e.data||[];
+ if(!sameCourse){eventDraft=null;eventPreview=null;}
+ if(sameCourse&&eventDraft&&eventPreview)eventPreview=previewSchedulingEvent({course,units,lessons,exceptions},eventDraft);
  if(!sameCourse||!calendarState){
   const initial=isCalendarDate(course.first_day)?course.first_day:activeCalendarRecords({course,units,lessons}).lessons.flatMap(l=>l.scheduled_dates||[]).filter(isCalendarDate).sort()[0]||todayInCourse(course.timezone);
   calendarState={view:"month",anchor:initial,selected:initial};
@@ -127,7 +132,19 @@ function renderLessons(current){
  const create=units.length?'<details class="private-new-form"><summary>Add lesson</summary><form data-private-create="lessons" class="private-form-grid"><label>Unit<select name="unit_id">'+unitOptions+'</select></label><label>Lesson title<input name="title" required maxlength="180"></label><label>Sequence position<input type="number" name="position" min="1" required value="'+(lessons.length+1)+'"></label><button type="submit">Create lesson</button></form></details>':'<p>Create a unit before adding lessons.</p>';
  return '<p>Lesson details and Course Sequence refer to the same saved lesson record. Blank fields are optional.</p>'+existing+create;
 }
-function renderCalendar(){return renderSavedCalendar({course,units,lessons,exceptions},calendarState);}
+function calendarRecords(){return {course,units,lessons,exceptions};}
+function renderCalendar(){return renderSavedCalendar(calendarRecords(),calendarState)+renderSchedulingPreview(calendarRecords(),eventDraft,eventPreview);}
+function readEventDraft(form){
+ const values=new FormData(form);return {...eventDraft,...Object.fromEntries(["title","date","eventType","availability","effect","notes"].map(key=>[key,String(values.get(key)??eventDraft[key]??"")]))};
+}
+function closeEventPreview(){eventDraft=null;eventPreview=null;renderWithFocus('[data-event-open=""]');}
+function openEventPreview(id){
+ if(!canNavigate())return;
+ const event=id?exceptions.find(e=>e.id===id):null;if(id&&!event){status("Event no longer available; reload saved data.","error");return;}
+ const normalized=event?normalizeEvent(event):null;
+ eventDraft={eventId:event?.id||null,title:event?.title||"",date:event?.date||calendarState.selected,eventType:event?(event.event_type??"Legacy / unspecified"):"Closure",availability:normalized?.availability||"closed",effect:normalized?.effect||"Move",notes:event?.notes||"",closedDateConstraint:normalized?.availability==="closed",expectedSnapshot:schedulingSnapshotToken(calendarRecords())};
+ eventPreview=null;renderWithFocus('#event-form-title');
+}
 function renderWithFocus(selector){render();root.querySelector(selector)?.focus();}
 function selectCalendarDay(date){
  if(!isCalendarDate(date)||!canNavigate())return;
@@ -135,6 +152,7 @@ function selectCalendarDay(date){
  renderWithFocus('[data-private-calendar-day="'+date+'"]');
 }
 root.addEventListener("keydown",e=>{
+ if(e.key==="Escape"&&eventDraft&&e.target.closest('.event-preview-panel')){e.preventDefault();closeEventPreview();return;}
  const date=e.target.dataset?.privateCalendarDay;if(!date||tab!=="calendar")return;
  const offsets={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7,Home:0,End:6};
  if(!(e.key in offsets))return;e.preventDefault();
@@ -148,10 +166,15 @@ function exportCourse(){
  link.href=url;link.download="course-planner-"+course.id+".json";document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
  status("Export created from your last retrieved saved records. This is not an automated backup.","saved");
 }
-root.addEventListener("input",e=>{if(e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);});
+root.addEventListener("input",e=>{
+ if(e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);
+ const form=e.target.closest("[data-event-preview-form]");if(form&&eventDraft){eventDraft=readEventDraft(form);eventPreview=null;const stale=root.querySelector('[aria-labelledby="scheduling-preview-title"]');if(stale)stale.hidden=true;}
+});
 root.addEventListener("click",async e=>{
  const button=e.target.closest("button");if(!button)return;
- if(button.matches("[data-private-calendar-day]")){selectCalendarDay(button.dataset.privateCalendarDay);}
+ if(button.matches("[data-event-open]")){openEventPreview(button.dataset.eventOpen);}
+ else if(button.matches("[data-event-close]")){closeEventPreview();}
+ else if(button.matches("[data-private-calendar-day]")){selectCalendarDay(button.dataset.privateCalendarDay);}
  else if(button.matches("[data-private-calendar-view]")){
   if(!canNavigate())return;calendarState.view=button.dataset.privateCalendarView;calendarState.anchor=calendarState.selected;dirty=false;
   renderWithFocus('[data-private-calendar-view="'+calendarState.view+'"]');
@@ -162,8 +185,8 @@ root.addEventListener("click",async e=>{
   calendarState.anchor=date;calendarState.selected=date;dirty=false;
   renderWithFocus('[data-private-calendar-period="'+step+'"]');
  }
- else if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;dirty=false;render();}
- else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;tab="lessons";dirty=false;renderWithFocus('[data-private-save="lessons"] input[name="title"]');}
+ else if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;if(tab!=="calendar"){eventDraft=null;eventPreview=null;}dirty=false;render();}
+ else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;eventDraft=null;eventPreview=null;tab="lessons";dirty=false;renderWithFocus('[data-private-save="lessons"] input[name="title"]');}
  else if(button.matches("[data-private-export]"))exportCourse();
  else if(button.matches("[data-private-reload]")){
   if(dirty && !confirm("Discard your unsaved edits and reload saved course data?"))return;
@@ -171,11 +194,22 @@ root.addEventListener("click",async e=>{
  }
 });
 root.addEventListener("change",e=>{
+ const eventForm=e.target.closest("[data-event-preview-form]");
+ if(eventForm&&eventDraft){
+  eventDraft=readEventDraft(eventForm);eventPreview=null;
+  if(e.target.name==="eventType"){const defaults=EVENT_TYPES[eventDraft.eventType];if(defaults){eventDraft.availability=defaults.availability;eventDraft.effect=defaults.effect;}}
+  if(eventDraft.closedDateConstraint){eventDraft.availability="closed";eventDraft.effect="Move";}
+  if(eventDraft.effect==="Keep"&&['closed','occupied'].includes(eventDraft.availability))eventDraft.effect="Move";
+  if(e.target.tagName==="SELECT")renderWithFocus('[data-event-preview-form] [name="'+e.target.name+'"]');return;
+ }
  if(e.target.matches("[data-private-select-unit]")){if(!canNavigate()){e.target.value=selectedUnit;return;}selectedUnit=e.target.value;dirty=false;render();}
  if(e.target.matches("[data-private-select-lesson]")){if(!canNavigate()){e.target.value=selectedLesson;return;}selectedLesson=e.target.value;dirty=false;render();}
 });
 root.addEventListener("submit",async e=>{
  const form=e.target.closest("form");if(!form)return;e.preventDefault();
+ if(form.matches("[data-event-preview-form]")){
+  if(!eventDraft||tab!=="calendar")return;eventDraft=readEventDraft(form);eventPreview=previewSchedulingEvent(calendarRecords(),eventDraft);renderWithFocus('#scheduling-preview-title');return;
+ }
  if(!api || !owner || !course)return;
  const btn=form.querySelector('button[type="submit"]');btn.disabled=true;status("Saving to your private database…","pending");
  try{
