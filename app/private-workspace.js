@@ -1,3 +1,5 @@
+import {isCalendarDate,addCalendarDays,shiftCalendarMonth,weekStart,todayInCourse} from "./calendar-model.js";
+import {renderSavedCalendar} from "./calendar-view.js";
 
 /* Private Course Planner vertical slice: real, owner-isolated Supabase records.
  * The fictional preview remains separate and is NEVER a source of persisted data. */
@@ -28,6 +30,7 @@ const lessonFields = [
  ["textbook_map_item","Textbook map item","text"]
 ];
 let api=null, owner=null, course=null, units=[],lessons=[],exceptions=[],selectedUnit=null,selectedLesson=null,tab="sequence",dirty=false,epoch=0,editEpoch=0;
+let calendarState=null;
 function status(message,kind="info"){const e=$("private-status");if(e){e.textContent=message;e.dataset.kind=kind;}}
 function field([name,label,type,options],value){
  const text=escapeHtml(value??"");
@@ -43,7 +46,7 @@ function formValues(form,fields){const f=new FormData(form),out={};
 }
 function canNavigate(){return !dirty || confirm("Your current changes are not saved. Discard them?");}
 function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
-function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceDirty(){return dirty;}
@@ -77,6 +80,10 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}
  if(firstError){if(sameCourse)status("Reload failed; current editor preserved: "+firstError.message,"error");else{root.replaceChildren();root.textContent="Unable to open private course: "+firstError.message;}return false;}
  if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else root.textContent="Course unavailable for this account.";return false;}
  course=c.data;units=u.data||[];lessons=l.data||[];exceptions=e.data||[];
+ if(!sameCourse||!calendarState){
+  const initial=isCalendarDate(course.first_day)?course.first_day:lessons.flatMap(l=>l.scheduled_dates||[]).filter(isCalendarDate).sort()[0]||todayInCourse(course.timezone);
+  calendarState={view:"month",anchor:initial,selected:initial};
+ }
  if(!units.some(x=>x.id===selectedUnit))selectedUnit=units[0]?.id||null;
  if(!lessons.some(x=>x.id===selectedLesson))selectedLesson=lessons[0]?.id||null;
  dirty=false;render();
@@ -120,11 +127,19 @@ function renderLessons(current){
  const create=units.length?'<details class="private-new-form"><summary>Add lesson</summary><form data-private-create="lessons" class="private-form-grid"><label>Unit<select name="unit_id">'+unitOptions+'</select></label><label>Lesson title<input name="title" required maxlength="180"></label><label>Sequence position<input type="number" name="position" min="1" required value="'+(lessons.length+1)+'"></label><button type="submit">Create lesson</button></form></details>':'<p>Create a unit before adding lessons.</p>';
  return '<p>Lesson details and Course Sequence refer to the same saved lesson record. Blank fields are optional.</p>'+existing+create;
 }
-function renderCalendar(){
- return '<p class="private-warning">Read-only scheduling checkpoint: dates and exceptions are stored, but calculating instructional days, previews, pin conflicts and atomic moves is not implemented yet. Do not rely on this screen for scheduling decisions.</p>'+
- '<h3>Stored lesson dates</h3><ul>'+lessons.map(l=>'<li>'+escapeHtml(l.title)+': '+escapeHtml((l.scheduled_dates||[]).join(", ")||"Unscheduled")+'</li>').join("")+'</ul>'+
- '<h3>Stored calendar exceptions</h3>'+(exceptions.length?'<ul>'+exceptions.map(e=>'<li>'+escapeHtml(e.date+" · "+e.title+" · "+e.effect)+'</li>').join("")+'</ul>':'<p>No exceptions saved yet.</p>');
+function renderCalendar(){return renderSavedCalendar({course,units,lessons,exceptions},calendarState);}
+function renderWithFocus(selector){render();root.querySelector(selector)?.focus();}
+function selectCalendarDay(date){
+ if(!isCalendarDate(date)||!canNavigate())return;
+ calendarState.selected=date;calendarState.anchor=date;dirty=false;
+ renderWithFocus('[data-private-calendar-day="'+date+'"]');
 }
+root.addEventListener("keydown",e=>{
+ const date=e.target.dataset?.privateCalendarDay;if(!date||tab!=="calendar")return;
+ const offsets={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7,Home:0,End:6};
+ if(!(e.key in offsets))return;e.preventDefault();
+ selectCalendarDay(addCalendarDays(e.key==="Home"||e.key==="End"?weekStart(date):date,offsets[e.key]));
+});
 function exportCourse(){
  if(!course || dirty){status("Save or discard changes before exporting.","error");return;}
  const json={schema:"course-planner.pilot-export.v1",exportedAt:new Date().toISOString(),course,units,lessons,calendarExceptions:exceptions};
@@ -136,8 +151,19 @@ function exportCourse(){
 root.addEventListener("input",e=>{if(e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);});
 root.addEventListener("click",async e=>{
  const button=e.target.closest("button");if(!button)return;
- if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;dirty=false;render();}
- else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;tab="lessons";dirty=false;render();}
+ if(button.matches("[data-private-calendar-day]")){selectCalendarDay(button.dataset.privateCalendarDay);}
+ else if(button.matches("[data-private-calendar-view]")){
+  if(!canNavigate())return;calendarState.view=button.dataset.privateCalendarView;calendarState.anchor=calendarState.selected;dirty=false;
+  renderWithFocus('[data-private-calendar-view="'+calendarState.view+'"]');
+ }
+ else if(button.matches("[data-private-calendar-period]")){
+  if(!canNavigate())return;const step=Number(button.dataset.privateCalendarPeriod);
+  const date=calendarState.view==="month"?shiftCalendarMonth(calendarState.anchor,step):addCalendarDays(calendarState.anchor,step*7);
+  calendarState.anchor=date;calendarState.selected=date;dirty=false;
+  renderWithFocus('[data-private-calendar-period="'+step+'"]');
+ }
+ else if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;dirty=false;render();}
+ else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;tab="lessons";dirty=false;renderWithFocus('[data-private-save="lessons"] input[name="title"]');}
  else if(button.matches("[data-private-export]"))exportCourse();
  else if(button.matches("[data-private-reload]")){
   if(dirty && !confirm("Discard your unsaved edits and reload saved course data?"))return;

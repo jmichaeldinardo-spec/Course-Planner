@@ -8,7 +8,7 @@ const get=p=>readFileSync(new URL(p,root),"utf8");
 const app=get("index.html"),auth=get("auth.js"),workspace=get("private-workspace.js"),config=get("config.js");
 test("standalone modules are syntactically valid",()=>{
  assert.doesNotThrow(()=>new vm.Script(auth.replace(/^import .*$/gm,""),{filename:"auth.js"}));
- assert.doesNotThrow(()=>new vm.Script(workspace.replace(/^export /gm,""),{filename:"private-workspace.js"}));
+ assert.doesNotThrow(()=>new vm.Script(workspace.replace(/^import .*$/gm,"").replace(/^export /gm,""),{filename:"private-workspace.js"}));
 });
 test("private workspace is accessible independently of the fictional demonstration",()=>{
  assert.match(app,/id="private-workspace"/);
@@ -58,7 +58,7 @@ test("unsaved drafts block background refreshes and in-flight responses",async()
  };
  const context={document,console,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
  vm.createContext(context);
- const source=workspace.replace(/^export /gm,"");
+ const source=workspace.replace(/^import .*$/gm,"").replace(/^export /gm,"");
  vm.runInContext(source,context,{filename:"private-workspace.js"});
  const user={id:"teacher-id"};
  const record={id:"11111111-1111-4111-8111-111111111111",owner_id:user.id,name:"Test Course"};
