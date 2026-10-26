@@ -1,14 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
 import { openPrivateCourse, clearPrivateWorkspace, activePrivateCourseId, isPrivateWorkspaceDirty } from "./private-workspace.js";
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
+import { makeAccountBackup } from "./backup.js";
 const client=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const byId=id=>document.getElementById(id);
-const authStatus=byId("auth-status"), storageStatus=byId("storage-status"), authForm=byId("auth-form"),courseForm=byId("course-form"), signout=byId("auth-signout"),list=byId("saved-courses"),restoreDetails=byId("restore-details"),restoreForm=byId("restore-form"),restoreStatus=byId("restore-status");
+const authStatus=byId("auth-status"), storageStatus=byId("storage-status"), authForm=byId("auth-form"),courseForm=byId("course-form"), signout=byId("auth-signout"),list=byId("saved-courses"),restoreDetails=byId("restore-details"),restoreForm=byId("restore-form"),restoreStatus=byId("restore-status"),backupButton=byId("backup-all"),backupStatus=byId("backup-status");
 let user=null;
 async function refresh(){
  const {data:{session},error}=await client.auth.getSession();user=session?.user||null;
  authStatus.textContent=error?"Unable to check sign-in: "+error.message:user?"Signed in: "+user.email:"Not signed in";
- authForm.hidden=!!user;byId("auth-hint").hidden=!!user;signout.hidden=!user;courseForm.hidden=!user;restoreDetails.hidden=!user;list.replaceChildren();
+ authForm.hidden=!!user;byId("auth-hint").hidden=!!user;signout.hidden=!user;courseForm.hidden=!user;restoreDetails.hidden=!user;backupButton.hidden=!user;list.replaceChildren();
  if(!user){clearPrivateWorkspace();storageStatus.textContent="Sign in to access private saved courses. The interactive demonstration below does not save changes.";return;}
  storageStatus.textContent="Loading private courses…";
  const {data,error:readError}=await client.from("courses").select("id,name,revision,updated_at").order("updated_at",{ascending:false});
@@ -22,6 +23,38 @@ list.addEventListener("click",event=>{const b=event.target.closest("[data-privat
 authForm.addEventListener("submit",async e=>{e.preventDefault();const btn=authForm.querySelector("button");btn.disabled=true;authStatus.textContent="Requesting sign-in email…";const email=byId("auth-email").value.trim();const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error){authStatus.textContent=/rate limit/i.test(error.message)?"Supabase email rate limit reached. Do not retry immediately; wait for the limit to reset.": "Sign-in email failed: "+error.message;}else{authStatus.textContent="Check your email for a sign-in link. Open it once in this same browser after authorizing Vercel preview access."; }btn.disabled=false;});
 signout.addEventListener("click",async()=>{if(isPrivateWorkspaceDirty()&&!confirm("You have unsaved edits. Sign out without saving?"))return;signout.disabled=true;const {error}=await client.auth.signOut();if(error)authStatus.textContent="Sign-out failed: "+error.message;await refresh();signout.disabled=false;});
 courseForm.addEventListener("submit",async e=>{e.preventDefault();if(!user)return;const btn=courseForm.querySelector("button"),name=byId("course-name").value.trim();if(!name)return;btn.disabled=true;storageStatus.textContent="Saving course…";const {data,error}=await client.from("courses").insert({owner_id:user.id,name}).select("id").single();if(error)storageStatus.textContent="Save failed: "+error.message;else{courseForm.reset();await refresh();await openPrivateCourse(client,user,data.id);}btn.disabled=false;});
+
+
+backupButton.addEventListener("click",async()=>{
+ if(!user)return;
+ if(isPrivateWorkspaceDirty()){
+  backupStatus.textContent="Save or discard unsaved changes before backing up.";
+  return;
+ }
+ const exportingUser=user;
+ backupButton.disabled=true;
+ backupStatus.textContent="Preparing a private account backup…";
+ try{
+  const {bytes,manifest}=await makeAccountBackup(client,exportingUser,message=>{
+   backupStatus.textContent=message;
+  });
+  if(!user||user.id!==exportingUser.id)throw new Error("Account changed during export; backup canceled.");
+  const name="course-planner-account-backup-"+new Date().toISOString().slice(0,10)+".zip";
+  const blob=new Blob([bytes],{type:"application/zip"});
+  const downloadUrl=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  try{
+   link.href=downloadUrl;link.download=name;
+   document.body.append(link);link.click();
+  }finally{
+   link.remove();setTimeout(()=>URL.revokeObjectURL(downloadUrl),60000);
+  }
+  const lessons=manifest.courses.reduce((sum,item)=>sum+item.counts.lessons,0);
+  backupStatus.textContent="Backup downloaded: "+manifest.courseCount+" course(s), "+lessons+" lessons. Check that the ZIP appears in Downloads, then copy it to private storage outside Supabase.";
+ }catch(err){
+  backupStatus.textContent="Backup failed: "+err.message+" No ZIP was downloaded.";
+ }finally{backupButton.disabled=false;}
+});
 
 restoreForm.addEventListener("submit",async e=>{
  e.preventDefault();
