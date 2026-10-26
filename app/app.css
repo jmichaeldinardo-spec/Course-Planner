@@ -58,3 +58,11 @@
 @media(max-width:760px){.private-workspace{padding:14px}.private-header{display:block}.private-form-grid{grid-template-columns:1fr}.private-nav button{flex:1}.private-table{min-width:560px}}
 
 [hidden]{display:none!important}
+
+/* Email-code entry remains optional for already-confirmed users. */
+.auth-otp-details{flex:1 1 100%;max-width:640px;}
+.auth-otp-details summary{cursor:pointer;font-size:.86rem;color:#cfdbff;padding:7px 0;}
+.auth-otp-details form{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:7px 0;}
+.auth-otp-details label{font-size:.84rem;}
+.auth-otp-details input{max-width:180px;}
+.auth-otp-details p{font-size:.81rem;margin:5px 0;}
