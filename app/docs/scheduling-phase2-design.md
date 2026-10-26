@@ -48,9 +48,10 @@ before review/confirmation. Extend is a deferred concept, not an enabled effect.
 lesson-day per eligible course date; full-day duration represented by an integer;
 rightward ripple only, retaining existing gaps/anchors when possible, rather than
 compressing the whole course back to term start. Existing fully scheduled,
-consistent dates are the baseline. Unanchored unscheduled lessons, incomplete
-saved duration, overlaps, order inversions, missing revisions and unknown time
-allocations block computation instead of silently repairing the course.
+consistent dates are the baseline. Overlaps, order inversions, missing revisions,
+invalid dates/durations and unknown time allocations block all computation.
+Incomplete saved date arrays alone permit the bounded partial assessment below;
+they never authorize initial scheduling or a successful overall proposal.
 
 The proposed multi-day Move policy retains unaffected earlier slots and displaces
 blocked/later slots to subsequent eligible dates; it does not add duration (Extend)
@@ -130,6 +131,20 @@ lower bound and shifts only when unavailable dates or preceding displacement req
 it. Allocate all full-day slots before the next hard commitment. A failure is shown
 with its unmet duration; later unpinned work is not silently advanced around it.
 Any existing incomplete/unscheduled work remains visible and blocks confirmation.
+When incomplete date counts are the only baseline blockers, assess only the fully
+scheduled leading sequence before the first incomplete lesson. The final saved date
+of that complete prefix is an exclusive-next-day horizon: no proposed date may
+cross it. Preserve original lower bounds, full-day allocation and pin constraints.
+If ripple would cross that horizon, return `null` (not assessed), not `[]`
+(proven unplaceable); later unpinned work is also not assessed. The first incomplete
+lesson and every later lesson always have `null` proposed dates, even if some have
+saved dates. A missing first lesson yields no assessed segment. No safe suffix is
+inferred beyond a sequence gap. Additional hard blockers still prevent all assessment.
+
+The UI separates assessed affected rows, unassessed rows with retained BEFORE dates,
+saved-unscheduled counts, assessed unallocated days and unassessed required days.
+A partial result remains overall blocked and has no Apply action. This conservative
+review specification does not approve partial writes in 2B.
 Product review must decide whether a distinct baseline-planning command may anchor
 previously unscheduled work; event Move does not silently do that in 2A.
 There is **no persistence confirmation API** in 2A, even for a valid proposal.
@@ -151,8 +166,8 @@ writes also retain the compatible legacy projection (closed Move→No Lesson,
 occupied/elective Move→Replace Lesson, instructional Keep→Continue Lesson). Store
 circumstance separately in `event_type`; do not conflate it with effect. For an
 explicit edit that changes the compatible legacy projection, preserve original raw
-effect/type in an owner-protected recovery/audit snapshot in the same transaction
-(or a reviewed nullable legacy-origin field). Merely leaving contradictory raw
+effect/type in the owner-protected atomic recovery journal required from the first
+2B scheduling write. Merely leaving contradictory raw
 values for old readers is not a safe compatibility strategy. This journal choice
 must be reviewed before 2B; it does not enable user-facing Undo before 2C. Unknown
 legacy subtype can be clarified explicitly without discarding the raw value.
@@ -201,9 +216,15 @@ event intent, expected snapshot/dependency versions and an idempotency key. It m
    authored fields/order unless the reviewed command explicitly changes them.
    Idempotency keys are owner+course scoped and bound to a request digest; retries
    return the same result, mismatched payloads fail. A failed write rolls back all.
-5. In 2C, persist an owner-protected change ID with event/placement before/after and
-   resulting revisions. Undo is another locked, revision-checked transaction; later
-   edits force a new preview. Never blindly replace the course with an old snapshot.
+5. From the **first 2B scheduling write**, atomically persist an owner-protected
+   recovery journal/change ID containing the complete BEFORE/AFTER event (including
+   raw legacy metadata), every changed lesson date array, input/result revisions,
+   owner/course scope and idempotency request identity/digest. Journal failure must
+   roll back the event and lesson writes. Retention/access/export policy must be
+   reviewed before writes; recovery records cannot be deferred to 2C.
+6. In 2C, add user-facing Undo backed by that journal as another locked,
+   revision-checked transaction; later edits force a new preview. Never blindly
+   replace the course with an old snapshot.
 
 Disposable fictional tests must cover rollback at each write, stale membership and
 row edits, foreign-owner read/write attempts, duplicate/tampered IDs, retries,

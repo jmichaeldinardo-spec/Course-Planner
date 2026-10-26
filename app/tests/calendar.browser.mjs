@@ -9,11 +9,11 @@ import {resolve,dirname,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {buildCalendarModel,addCalendarDays} from '../calendar-model.js';
-import {scheduleFixture,id as previewId} from './fixtures/scheduling-scenarios.mjs';
+import {scheduleFixture,fullyScheduled80Fixture,id as previewId} from './fixtures/scheduling-scenarios.mjs';
 const require=createRequire(import.meta.url);
 const {chromium}=require('playwright');
 const app=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const out=resolve(app,'reviews/calendar-event-effect-preview');await mkdir(out,{recursive:true});
+const out=resolve(app,'reviews/calendar-event-effect-preview/review-correction');await mkdir(out,{recursive:true});
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const course={id:id(1),owner_id:id(2),name:'Fictional Civic Systems — browser acceptance',first_day:'2026-09-01',last_day:'2027-01-29',teaching_weekdays:[1,2,3,4,5],timezone:'America/New_York',revision:1};
 const units=Array.from({length:5},(_,i)=>({id:id(10+i),course_id:course.id,title:'Fictional Unit '+(i+1),position:i+1,target_days:18,revision:1}));
@@ -99,6 +99,41 @@ async function verifyPreviewInterface(page,width,prefix,fixture){
  await page.evaluate(({eventId,courseId})=>{window.testDb.calendar_exceptions=[{id:eventId,course_id:courseId,date:'2026-09-18',title:'Fictional full closure',effect:'No Lesson',event_type:'Closure',revision:1}];},{eventId:previewId(31),courseId:fixture.course.id});await page.locator('[data-private-reload]').click();await page.locator('.event-list summary').click();await page.locator('.event-list [data-event-open="'+previewId(31)+'"]').click();
  await page.locator('[name="eventType"]').selectOption('Shortened periods');check(prefix+' saved closure constraint survives type defaults',await page.locator('[name="availability"]').inputValue()==='closed'&&await page.locator('[name="effect"]').inputValue()==='Move');check(prefix+' saved closure Keep stays forbidden',await page.locator('[name="effect"] option[value="Keep"]').evaluate(e=>e.disabled));
 }
+async function verifyCompleteOrPartial(page,width,prefix,fixture,partial=false){
+ const original=await page.evaluate(()=>JSON.stringify(window.testDb));
+ const result=page.locator('[aria-labelledby="scheduling-preview-title"]');
+ const form=page.locator('[data-event-preview-form]');
+ await page.locator('[data-event-open=""]').click();
+ await form.locator('[name="title"]').fill('Fictional review closure');await form.locator('[name="date"]').fill(partial?'2026-09-15':'2026-09-02');
+ await form.locator('button[type="submit"]').click();
+ check(prefix+' Move result explicit',(await result.innerText()).includes(partial?'Partial preview — overall blocked':'Preview ready for review'));
+ check(prefix+' full BEFORE comparisons',await result.locator('details').filter({hasText:'All active lesson comparisons'}).locator('[data-preview-row]').count()===fixture.lessons.length);
+ check(prefix+' assessed downstream Move changes',await result.locator(':scope > [data-preview-row][data-changed="true"]').count()===(partial?1:79));
+ check(prefix+' no Apply action',await result.getByRole('button',{name:/^(Apply|Save|Confirm)$/}).count()===0);
+ check(prefix+' result focus',await page.locator('#scheduling-preview-title').evaluate(e=>e===document.activeElement));
+ if(partial){
+  check(prefix+' honest assessment totals',(await result.innerText()).includes('2 lesson(s) assessed · 2 not assessed · 1 already unscheduled'));
+  check(prefix+' no dates cross unresolved horizon',(await result.innerText()).includes('ending 2026-09-16'));
+  await result.locator('[data-preview-unassessed] summary').click();
+  check(prefix+' unassessed saved dates disclosed',(await result.locator('[data-preview-unassessed]').innerText()).includes('Not assessed — no proposed dates'));
+ }else{
+  check(prefix+' eighty assessed no missing work',(await result.innerText()).includes('80 lesson(s) assessed · 0 not assessed · 0 already unscheduled'));
+  check(prefix+' five units twelve saved events',(await result.innerText()).includes('5 active unit(s)')&&(await page.locator('.private-header').innerText()).includes('80 lesson(s) · 12 calendar exception(s)'));
+ }
+ check(prefix+' no overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await result.screenshot({path:resolve(out,prefix+'-move.png')});
+ await form.locator('[name="eventType"]').selectOption('Shortened periods');await form.locator('[name="availability"]').selectOption('instructional');await form.locator('[name="effect"]').selectOption('Keep');await form.locator('button[type="submit"]').click();
+ check(prefix+' Keep result explicit',(await result.innerText()).includes(partial?'Partial preview — overall blocked':'Preview ready for review'));
+ check(prefix+' Keep changes no dates',await result.locator(':scope > [data-preview-row][data-changed="true"]').count()===0);
+ check(prefix+' Keep assessment counts',(await result.innerText()).includes(partial?'3 lesson(s) assessed · 1 not assessed':'80 lesson(s) assessed · 0 not assessed'));
+ await result.screenshot({path:resolve(out,prefix+'-keep.png')});
+ await result.getByRole('button',{name:'Close preview',exact:true}).click();
+ check(prefix+' Cancel byte equality',await page.evaluate(original=>JSON.stringify(window.testDb)===original,original));
+ const downloadPromise=page.waitForEvent('download');await page.locator('[data-private-export]').click();const download=await downloadPromise;const json=JSON.parse(await readFile(await download.path(),'utf8'));
+ check(prefix+' JSON retains entire lesson records',JSON.stringify(json.lessons)===JSON.stringify(fixture.lessons));
+ check(prefix+' no preview writes',await page.evaluate(()=>window.testWrites.length===0));
+ await page.locator('[data-private-calendar-view="week"]').click();check(prefix+' Week retained',await page.locator('.saved-agenda>.saved-calendar-day').count()===7);
+}
 const server=createServer(async(req,res)=>{
  try{const path=resolve(app,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
   if(!path.startsWith(app+'/')&&path!==app)throw Error('Invalid path');
@@ -110,10 +145,11 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser;
 try{
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
- for(const [fixtureName,fixture] of [['preview',scheduleFixture()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])]){
+ for(const [fixtureName,fixture] of [['preview',scheduleFixture()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])]){
   const expected=buildCalendarModel(fixture);
   for(const width of [1440,390]){
-   const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true});
+   const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true});context.setDefaultTimeout(20000);
+   console.log('Checking '+fixtureName+' at '+width+'px');
    await context.addInitScript(({fixture})=>{
     const snapshot=structuredClone(fixture);const owner=fixture.course.owner_id;
     const db={courses:[fixture.course],units:fixture.units,lessons:fixture.lessons,calendar_exceptions:fixture.exceptions};
@@ -150,6 +186,7 @@ try{
    await page.locator('.saved-month').waitFor();
    const prefix=`${fixtureName}-${width}`;
    if(fixtureName==='preview'){await verifyPreviewInterface(page,width,prefix,fixture);await context.close();continue;}
+   if(fixtureName==='complete-80'||fixtureName==='partial'){await verifyCompleteOrPartial(page,width,prefix,fixture,fixtureName==='partial');await context.close();continue;}
    const hiddenLessons=archivedRecords(fixture);
    async function checkArchives(view){
     const content=await page.locator('.private-content').innerHTML();
@@ -158,7 +195,8 @@ try{
    }
    await checkArchives('Month');
    await page.locator('[data-event-open=""]').click();await page.locator('[data-event-preview-form] [name="title"]').fill('Fictional 80-lesson preview probe');await page.locator('[data-event-preview-form] button[type="submit"]').click();
-   check(prefix+' large-course blocked baseline is explicit',(await page.locator('#scheduling-preview-title').innerText()).includes('Blocked preview'));
+   check(prefix+' large-course blocked baseline is explicit',(await page.locator('#scheduling-preview-title').innerText()).includes(fixtureName==='stored-fictional'?'Partial preview — overall blocked':'Blocked preview'));
+   if(fixtureName==='stored-fictional')check(prefix+' stored incomplete boundary disclosed',(await page.locator('[aria-labelledby="scheduling-preview-title"]').innerText()).includes('not assessed')) ;
    check(prefix+' preview form performs zero writes',await page.evaluate(()=>window.testWrites.length===0));
    await page.locator('[aria-labelledby="scheduling-preview-title"]').getByRole('button',{name:'Close preview',exact:true}).click();
    check(prefix+' month/weekday structure',await page.locator('.saved-weekdays span').count()===7);

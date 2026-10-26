@@ -82,6 +82,13 @@ A deterministic BEFORE → PROPOSED comparison shows complete affected date arra
 protected commitments, capacity, blocking conflicts and soft warnings. Cancel/Close
 only discards transient state. There is no scheduling Save/Apply/Confirm path;
 Extend and partial-time allocation remain deferred/blocked.
+When incomplete date arrays are the only baseline problem, a bounded partial
+preview assesses the complete leading sequence within its saved date span. The
+first incomplete lesson and later work have no proposed dates; the overall result
+stays blocked. Separate counts distinguish assessed, unassessed and already
+unscheduled work. Initial schedule building remains a separate future workflow.
+A fully scheduled fictional 80-lesson fixture exercises successful Move/Keep
+alongside incomplete-baseline regressions.
 
 See [design, migration/RPC recommendations and review gates](docs/scheduling-phase2-design.md)
 and [test evidence/limits](docs/scheduling-phase2a-verification.md). Scheduling

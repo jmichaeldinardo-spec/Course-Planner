@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {normalizeEvent,eventDayState} from '../event-effects.js';
 import {previewSchedulingEvent,schedulingSnapshotToken} from '../scheduling-preview.js';
 import {renderSchedulingPreview} from '../scheduling-preview-view.js';
-import {scheduleFixture,scenarios,id} from './fixtures/scheduling-scenarios.mjs';
+import {scheduleFixture,fullyScheduled80Fixture,scenarios,id} from './fixtures/scheduling-scenarios.mjs';
 const draft=(snapshot,patch={})=>({title:'Fictional test event',date:'2026-09-15',eventType:'Closure',availability:'closed',effect:'Move',expectedSnapshot:schedulingSnapshotToken(snapshot),...patch});
 const preview=(s,patch={})=>previewSchedulingEvent(s,draft(s,patch));
 const freeze=o=>{Object.freeze(o);for(const v of Object.values(o))if(v&&typeof v==='object'&&!Object.isFrozen(v))freeze(v);return o;};
@@ -61,8 +61,8 @@ test('flexible preferences are warnings, never pin reservations or sequence edit
  assert.equal(p.valid,true);assert.deepEqual(p.rows[1].proposed,['2026-09-16']);assert.equal(p.rows[1].protected,false);assert.ok(p.warnings.some(w=>w.code==='soft-preference'));
  assert.deepEqual(p.rows.map(r=>[r.lessonId,r.unitId,r.position]),s.lessons.map(l=>[l.id,l.unit_id,l.position]));
 });
-test('existing overlaps, order inversions, incomplete dates and unknown durations block computation',()=>{
- for(const mutate of [s=>s.lessons[1].scheduled_dates=['2026-09-14'],s=>s.lessons[1].scheduled_dates=['2026-09-18'],s=>s.lessons[1].scheduled_dates=[],s=>s.lessons[1].duration_days=null,s=>s.lessons[1].scheduled_dates=['bad'],s=>s.lessons[1].position=1]){
+test('existing overlaps, order inversions, invalid dates and unknown durations block all computation',()=>{
+ for(const mutate of [s=>s.lessons[1].scheduled_dates=['2026-09-14'],s=>s.lessons[1].scheduled_dates=['2026-09-18'],s=>s.lessons[1].duration_days=null,s=>s.lessons[1].scheduled_dates=['bad'],s=>s.lessons[1].position=1]){
   const s=scheduleFixture();mutate(s);const p=preview(s);assert.equal(p.valid,false);assert.ok(p.rows.every(r=>r.proposed===null));assert.equal(Object.keys(p.placements).length,s.lessons.length);
  }
 });
@@ -116,4 +116,46 @@ test('two replacement activities contend for one period without double-counting 
 
 test('legacy subtype lookup does not treat inherited object keys as known event types',()=>{
  for(const event_type of ['__proto__','constructor','toString']){const n=normalizeEvent({event_type,effect:'Continue Lesson'});assert.equal(n.eventType,'Legacy / unspecified');assert.equal(n.effect,'Keep');assert.ok(n.uncertainties.length);}
+});
+
+
+test('incomplete baseline permits only the complete leading segment within its saved horizon',()=>{
+ const s=scheduleFixture();s.lessons[3].scheduled_dates=[];const before=JSON.stringify(s),p=preview(freeze(s));
+ assert.equal(p.valid,false);assert.equal(p.applyEnabled,false);assert.equal(p.assessment.mode,'bounded-prefix');assert.equal(p.assessment.throughDate,'2026-09-16');
+ assert.deepEqual(p.rows.map(r=>r.proposed),[['2026-09-14'],['2026-09-16'],null,null]);
+ assert.equal(p.rows[2].status,'not assessed at incomplete boundary');assert.equal(p.totals.assessedLessons,2);assert.equal(p.totals.notAssessedLessons,2);assert.equal(p.totals.baselineUnscheduledLessons,1);assert.equal(p.totals.unplacedAssessedDays,0);assert.equal(p.totals.unassessedRequiredDays,2);assert.equal(JSON.stringify(s),before);
+ const keep=preview(s,{eventType:'Shortened periods',availability:'instructional',effect:'Keep'});
+ assert.deepEqual(keep.rows.map(r=>r.proposed),[['2026-09-14'],['2026-09-15'],['2026-09-16'],null]);assert.equal(keep.totals.assessedLessons,3);
+ const html=renderSchedulingPreview(s,draft(s),p);assert.match(html,/Partial preview — overall blocked/);assert.match(html,/Not assessed — no proposed dates/);assert.match(html,/already unscheduled in saved data/);assert.doesNotMatch(html,/>Apply<|>Save</);
+});
+test('first incomplete lesson and partial multi-day baselines never receive invented anchors',()=>{
+ for(const index of [0,1,3]){
+  const s=scheduleFixture();s.lessons[index].duration_days=2;
+  const p=preview(s,{eventType:'Shortened periods',availability:'instructional',effect:'Keep'});
+  assert.equal(p.valid,false);assert.equal(p.assessment.prefixLength,index);assert.ok(p.rows.slice(index).every(r=>r.proposed===null));
+  assert.ok(p.rows.slice(0,index).every(r=>JSON.stringify(r.proposed)===JSON.stringify(r.before)));
+ }
+});
+test('partial previews retain pin constraints and hard blockers still prevent all assessment',()=>{
+ const s=scheduleFixture();s.lessons[3].scheduled_dates=[];s.lessons[2].protected_pin_date='2026-09-16';const p=preview(s);
+ assert.ok(p.conflicts.some(c=>c.code==='pin-contention'));assert.deepEqual(p.rows[1].proposed,[]);assert.deepEqual(p.rows[2].proposed,['2026-09-16']);assert.equal(p.rows[3].proposed,null);
+ for(const mutate of [x=>x.lessons[1].scheduled_dates=['2026-09-14'],x=>x.units[0].revision=null,x=>x.lessons[1].duration_days=null]){
+  const x=scheduleFixture();x.lessons[3].scheduled_dates=[];mutate(x);assert.ok(preview(x).rows.every(r=>r.proposed===null));
+ }
+ const choice=draft(s);s.course.revision++;assert.ok(previewSchedulingEvent(s,choice).rows.every(r=>r.proposed===null));
+});
+test('fully scheduled fictional 80-lesson course succeeds for Move and Keep without mutations',()=>{
+ const s=freeze(fullyScheduled80Fixture()),before=JSON.stringify(s),move=preview(s,{date:'2026-09-02'}),keep=preview(s,{date:'2026-09-02',eventType:'Shortened periods',availability:'instructional',effect:'Keep'});
+ assert.equal(s.units.length,5);assert.equal(s.exceptions.length,12);assert.equal(s.lessons.length,80);assert.equal(move.valid,true);assert.equal(keep.valid,true);assert.equal(move.applyEnabled,false);assert.equal(keep.applyEnabled,false);
+ assert.equal(move.rows.filter(r=>r.changed).length,79);assert.equal(move.totals.assessedLessons,80);assert.equal(move.totals.notAssessedLessons,0);assert.equal(move.totals.unmetDays,0);assert.equal(move.totals.requiredDays,89);
+ assert.deepEqual(keep.rows.map(r=>r.proposed),s.lessons.map(l=>l.scheduled_dates));assert.deepEqual(move.rows[0].proposed,s.lessons[0].scheduled_dates);
+ const dates=move.rows.flatMap(r=>r.proposed);assert.equal(new Set(dates).size,89);assert.ok(dates.every(d=>move.availability.proposed.includes(d)));assert.ok(move.rows.every((r,i)=>r.proposed.length===s.lessons[i].duration_days));
+ assert.deepEqual(move.rows.map(r=>[r.lessonId,r.unitId,r.position]),s.lessons.map(l=>[l.id,l.unit_id,l.position]));assert.equal(JSON.stringify(s),before);assert.deepEqual(preview(s,{date:'2026-09-02'}),move);
+});
+
+
+test('80-lesson incomplete-baseline regression stays blocked and retains all later saved records',()=>{
+ const s=fullyScheduled80Fixture();for(const i of [15,31,47,63,74,79])s.lessons[i].scheduled_dates=[];
+ const before=JSON.stringify(s),p=preview(freeze(s),{date:'2026-09-02',eventType:'Shortened periods',availability:'instructional',effect:'Keep'});
+ assert.equal(p.valid,false);assert.equal(p.applyEnabled,false);assert.equal(p.rows.length,80);assert.equal(p.totals.assessedLessons,15);assert.equal(p.totals.notAssessedLessons,65);assert.equal(p.totals.baselineUnscheduledLessons,6);assert.ok(p.rows.slice(15).every(r=>r.proposed===null));assert.deepEqual(p.rows.slice(0,15).map(r=>r.proposed),s.lessons.slice(0,15).map(l=>l.scheduled_dates));assert.equal(JSON.stringify(s),before);
 });

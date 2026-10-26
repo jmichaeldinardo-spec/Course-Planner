@@ -42,7 +42,7 @@ With its Node binary on PATH:
 cd app && node --test tests/*.test.mjs
 ```
 
-**66 tests passed, 0 failed, 0 skipped.** All 43 previous test cases are retained;
+**71 tests passed, 0 failed, 0 skipped.** All 43 previous test cases are retained;
 the earlier universal-uncertainty assertion for Replace/Continue was updated to
 DEC-027's newly approved semantics, while unknown effects still test uncertainty.
 New cases cover the three annotated scenarios; effective legacy values and raw
@@ -65,11 +65,11 @@ COURSE_PLANNER_CALENDAR_FIXTURE=app/reviews/calendar-event-effect-preview/stored
 /Users/aidevelopment/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node app/tests/calendar.browser.mjs
 ```
 
-**229 checks passed** at 1440px and 390px; **0 uncaught browser errors**. The actual
+**293 checks passed** at 1440px and 390px; **0 uncaught browser errors**. The actual
 app modules are served by a loopback-only server. Only the Supabase SDK network
 boundary is substituted with an owner-scoped test client; no real credentials or
 sessions are read. The optional stored fixture can be omitted for synthetic-only
-runs. These are local browser tests, not a new hosted signed-in acceptance claim.
+runs. These checks use local browser fixtures. Hosted acceptance is recorded separately below.
 
 Covered Add/Change event, type/effect defaults and permissible override, forbidden
 Keep and deferred Extend, full downstream date list, stale-result hiding,
@@ -79,7 +79,8 @@ Cancel, no Apply action and zero REST/RPC writes from all preview controls. Exis
 Month/Week, shared lesson IDs, unsaved authoring guard, save/reopen, stale-write
 rejection, JSON restore and account ZIP tests remain included. Empty first-course
 preview explains missing term and invents no placements. Archive preservation and
-80-lesson/12-event blocked-baseline cases run at both widths.
+80-lesson/12-event blocked-baseline cases run at both widths. Fully scheduled
+80-lesson Move/Keep success and bounded partial fixtures also run at both widths.
 
 An initial driver assertion treated a disabled `<option>` as enabled; inspected
 HTML had `disabled`. The final check verifies the native `option.disabled` property.
@@ -116,11 +117,17 @@ membership, revisions and archive flags versus the approved snapshot.
 
 Under DEC-027, the stored calendar has 93 confirmed instructional dates (the two
 Continue Lesson dates are usable), 92 required lesson-days and 86 saved assignments.
-Six lessons already have empty saved arrays. The new preview explicitly blocks on
-those six incomplete baselines, retains all 80 BEFORE rows and returns unassessed
-PROPOSED values. It does not invent initial dates or silently repair the course.
-The synthetic consistent fixtures demonstrate successful Move and Keep proposals;
-this stored sample demonstrates the adverse-input gate. No live saved scheduling,
+Six lessons already have empty saved arrays. After the independent review, these
+six incomplete baselines still block the overall proposal, while a complete
+leading segment can be assessed within its original saved date span. The first
+incomplete lesson and all later sequence work retain BEFORE dates and null
+PROPOSED values. No initial dates are invented and no ripple crosses that horizon.
+The independent fully scheduled 5-unit/80-lesson/12-event fixture demonstrates
+successful Move (79 changed lessons, 89 complete lesson-days) and Keep (no date
+changes), including multi-day lessons, a protected first lesson and a soft preference.
+The six-unscheduled 80-lesson regression proves 15 assessed / 65 unassessed on Keep.
+The smaller boundary regression proves a displaced lesson is not declared
+unplaceable merely because its outcome would require crossing unknown work. No live saved scheduling,
 restore or backup write was performed; those handler regressions use the test client.
 
 Local evidence under `app/reviews/calendar-event-effect-preview/` is excluded from
@@ -148,7 +155,30 @@ intent with a reviewed server policy, reject tampering/staleness/conflicts, writ
 all event/placement changes together, and bind retries to an idempotency key/digest.
 All scheduling-input writers must use the same boundary. Preserve original raw
 metadata in a reviewed recovery journal when explicitly changing legacy projection.
-2C history/Undo is a separate revision-checked atomic operation. Extend stays 2D.
+The recovery journal must exist from the first 2B write and atomically include the
+complete BEFORE/AFTER event, every changed lesson date array, revisions,
+owner/course and idempotency identity/digest. A journal failure rolls back all
+writes. 2C adds user-facing revision-checked Undo using that journal. Extend stays 2D.
 
 **Please review the open assumptions and migration/RPC architecture before any
 Phase 2B scheduling write implementation.** This PR authorizes none of those writes.
+
+
+## Independent review correction
+
+Review: https://github.com/jmichaeldinardo-spec/Course-Planner/pull/4#issuecomment-6424016024
+
+The original universal incomplete-baseline expectation was deliberately replaced
+with bounded leading-segment tests; all other hard blockers still block every
+proposal. Five new Node cases cover boundaries, partial multi-day input, pins,
+stale/invalid data, full 80-lesson success and the 80-lesson incomplete regression.
+No test, fixture or UI creates missing baseline dates. Both successful and partial
+browser scenarios verify Cancel byte equality, unchanged full lesson JSON exports,
+no scheduling Apply action and zero mock REST/RPC writes. Full automated coverage
+still includes archived records, JSON restore, ZIP/hash and authoring conflicts.
+Evidence is in Git-excluded `app/reviews/calendar-event-effect-preview/review-correction/`.
+
+Hosted read-only acceptance: pending exact PR-preview sign-in and the updated
+branch deployment. The initial sign-in attempt reached the foundation preview;
+the exact PR #4 origin remained signed out. No authentication state was copied
+between origins, and no redirect configuration was changed.

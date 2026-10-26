@@ -57,7 +57,7 @@ export function previewSchedulingEvent(snapshot,proposal){
  const available=termDates.filter(d=>eligible(d,afterEvents));
  const availableSet=new Set(available),beforeIndex=new Map(beforeAvailable.map((d,i)=>[d,i]));
  const rows=active.lessons.map(l=>({lessonId:l.id,unitId:l.unit_id,position:l.position,before:[...savedCalendarDates(l)],proposed:null,protected:!!l.protected_pin_date,changed:false,status:'not assessed',unmetDuration:l.duration_days}));
- const positions=new Set(),occupied=new Map();let priorEnd=null,requiredDays=0;
+ const positions=new Set(),occupied=new Map(),incompleteIndices=[];let priorEnd=null,requiredDays=0;
  for(let i=0;i<active.lessons.length;i++){
   const l=active.lessons[i],dates=rows[i].before;
   if(!active.units.some(u=>u.id===l.unit_id))block('orphan','An active lesson has no active saved parent unit.',{lessonId:l.id});
@@ -65,7 +65,7 @@ export function previewSchedulingEvent(snapshot,proposal){
   const validDuration=Number.isInteger(l.duration_days)&&l.duration_days>=1&&l.duration_days<=366;
   if(!validDuration)block('duration','A lesson needs a whole-day duration from 1–366.',{lessonId:l.id});else requiredDays+=l.duration_days;
   if(!Array.isArray(l.scheduled_dates)||dates.some(d=>!isCalendarDate(d))||new Set(dates).size!==dates.length||!same(dates,[...dates].sort()))block('saved-dates','Saved lesson dates are invalid, repeated or out of order.',{lessonId:l.id});
-  if(dates.length!==l.duration_days)block('incomplete','An existing lesson is unscheduled or has incomplete duration. Establish its baseline before ripple scheduling.',{lessonId:l.id});
+  if(dates.length!==l.duration_days){incompleteIndices.push(i);block('incomplete','This lesson has an incomplete saved schedule; it and later sequence lessons are not assessed.',{lessonId:l.id});}
   for(const d of dates){
    if(!eligible(d,beforeEvents))block('before-unavailable','A saved placement is already on an unavailable date.',{lessonId:l.id,date:d});
    if(occupied.has(d))block('before-overlap','Two saved lessons already contend for one instructional day.',{lessonId:l.id,date:d});else occupied.set(d,l.id);
@@ -76,11 +76,20 @@ export function previewSchedulingEvent(snapshot,proposal){
   if(l.protected_pin_date&&(!isCalendarDate(l.protected_pin_date)||!dates.includes(l.protected_pin_date)))block('pin-baseline','A protected pin is invalid or missing from its saved date array.',{lessonId:l.id});
   if(l.protected_pin_date&&l.flexible_preference_date)block('pin-preference','A lesson cannot have both a protected pin and soft preference.',{lessonId:l.id});
  }
- const baseBlocked=conflicts.length>0;
- if(!baseBlocked){
+ // A missing baseline is a sequence boundary, not permission to invent an anchor.
+ // Only incomplete-date blockers may permit partial assessment. Stale inputs,
+ // invalid constraints and inconsistent saved dates still block all computation.
+ const baseBlocked=conflicts.length>0,firstIncomplete=incompleteIndices[0]??rows.length;
+ const boundedPrefix=baseBlocked&&conflicts.every(c=>c.code==='incomplete')&&firstIncomplete>0;
+ const prefixLength=boundedPrefix?firstIncomplete:!baseBlocked?rows.length:0;
+ const throughDate=boundedPrefix?rows[prefixLength-1].before.at(-1):null;
+ const prefixLimit=throughDate?addCalendarDays(throughDate,1):null;
+ if(boundedPrefix)info('bounded-prefix','Only the complete leading segment inside its original saved date span is assessed. Unresolved lessons and later work retain saved dates with no proposed placement.',{lessonId:rows[firstIncomplete].lessonId,date:throughDate});
+ if(!baseBlocked||boundedPrefix){
   let cursor=course.first_day,failed=false;
-  for(let i=0;i<active.lessons.length;i++){
-   const l=active.lessons[i],row=rows[i],nextPin=active.lessons.slice(i+1).find(x=>x.protected_pin_date),limit=nextPin?savedCalendarDates(nextPin)[0]:null;
+  for(let i=0;i<prefixLength;i++){
+   const l=active.lessons[i],row=rows[i],nextPin=active.lessons.slice(i+1,prefixLength).find(x=>x.protected_pin_date),pinLimit=nextPin?savedCalendarDates(nextPin)[0]:null;
+   const limit=prefixLimit&&(!pinLimit||prefixLimit<pinLimit)?prefixLimit:pinLimit;
    if(l.protected_pin_date){
     row.proposed=[...row.before];row.status='protected';row.unmetDuration=0;
     if(row.before.some(d=>!availableSet.has(d))||row.before[0]<cursor){block('protected-pin','The proposed event/ripple conflicts with a protected saved date array; the pin has not moved.',{lessonId:l.id,date:l.protected_pin_date});row.status='blocked commitment';failed=true;}
@@ -94,10 +103,16 @@ export function previewSchedulingEvent(snapshot,proposal){
      const date=available.find(d=>d>=floor&&(!limit||d<limit));
      if(!date)break;dates.push(date);slotStart=addCalendarDays(date,1);
     }
-    if(dates.length!==l.duration_days){row.proposed=[];row.status='unplaceable';block(limit?'pin-contention':'capacity',limit?'The displaced lesson cannot fit before the next protected commitment.':'Insufficient eligible dates before term end; the lesson is wholly unplaced.',{lessonId:l.id,date:limit});failed=true;}
+    if(dates.length!==l.duration_days){
+     if(boundedPrefix&&limit===prefixLimit){
+      row.status='not assessed at incomplete boundary';info('partial-boundary','The ripple would leave the proven saved segment. No dates are proposed across the incomplete-baseline boundary.',{lessonId:l.id,date:throughDate});
+     }else{row.proposed=[];row.status='unplaceable';block(pinLimit?'pin-contention':'capacity',pinLimit?'The displaced lesson cannot fit before the next protected commitment.':'Insufficient eligible dates before term end; the lesson is wholly unplaced.',{lessonId:l.id,date:limit});}
+     failed=true;
+    }
     else{row.proposed=dates;row.status='proposed';row.unmetDuration=0;cursor=addCalendarDays(dates.at(-1),1);}
    }
   }
+  for(let i=prefixLength;i<rows.length;i++)rows[i].status='not assessed — unresolved baseline';
  }
  for(let i=0;i<rows.length;i++){
   const row=rows[i],l=active.lessons[i];row.unmetDuration=Number.isInteger(l.duration_days)?Math.max(0,l.duration_days-(row.proposed||[]).filter(d=>availableSet.has(d)).length):null;row.changed=row.proposed!==null&&!same(row.before,row.proposed);
@@ -109,10 +124,14 @@ export function previewSchedulingEvent(snapshot,proposal){
  const occupiedProposed=new Set(rows.flatMap(r=>r.proposed||[]).filter(d=>availableSet.has(d)));
  return {basisToken:token,eventChange:{action:original?'change':'add',before:original?normalizeEvent(original):null,proposed:event},
   valid:conflicts.length===0,applyEnabled:false,conflicts,warnings,rows,placements,affectedIds,
+  assessment:{mode:boundedPrefix?'bounded-prefix':baseBlocked?'blocked':'complete',prefixLength,throughDate,firstUnresolvedLessonId:incompleteIndices.length?rows[firstIncomplete].lessonId:null},
   commitments:rows.filter(r=>r.protected).map(r=>({lessonId:r.lessonId,dates:r.before})),
   availability:{before:beforeAvailable,proposed:available,reserved:termDates.filter(d=>!availableSet.has(d)),events:afterEvents},
   totals:{activeUnits:active.units.length,activeLessons:active.lessons.length,excludedUnits:units.filter(u=>u.course_id===course.id).length-active.units.length,excludedLessons:lessons.filter(l=>l.course_id===course.id).length-active.lessons.length,
    requiredDays,beforeConsumedDays:rows.reduce((s,r)=>s+r.before.length,0),availableDays:available.length,reservedDays:termDates.length-available.length,consumedDays:occupiedProposed.size,
+   assessedLessons:rows.filter(r=>r.proposed!==null).length,notAssessedLessons:rows.filter(r=>r.proposed===null).length,
+   baselineUnscheduledLessons:rows.filter(r=>r.before.length===0).length,baselineIncompleteLessons:incompleteIndices.length,
+   unplacedAssessedDays:rows.filter(r=>r.proposed!==null).reduce((sum,r)=>sum+(r.unmetDuration||0),0),unassessedRequiredDays:rows.filter(r=>r.proposed===null).reduce((sum,r)=>sum+(r.unmetDuration||0),0),
    notPlacedLessons:rows.filter(r=>r.proposed===null||r.proposed.length!==active.lessons.find(l=>l.id===r.lessonId).duration_days||r.proposed.some(d=>!availableSet.has(d))).length,
    unmetDays:rows.reduce((sum,r)=>sum+Math.max(0,(Number.isInteger(r.unmetDuration)?r.unmetDuration:0)),0)},
   assumptions:['Whole-date slots only; no fractional time or Extend.','Rightward ripple retains saved starts as lower bounds; no automatic course compression.','All saved dates of pinned lessons are protected in this preview; pin-span semantics need review before writes.']};
