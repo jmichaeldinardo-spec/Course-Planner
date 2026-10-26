@@ -36,3 +36,9 @@ The browser uses only a public `sb_publishable_` Supabase client key, not a serv
 
 Run local static tests: `cd app && node --test tests/*.test.mjs`.
 Run local server: `python3 -m http.server 8000` from the repo root, then open `/app/`.
+
+## Email sign-in diagnostics (October 25, 2026)
+
+The first shared-project account completed email login and persistent course/unit/lesson save-reopen. A second account confirmed its email in Supabase, but the browser returned unsigned-in after the protected Vercel preview interrupted the redirect. Supabase logs show a 429 email send limit followed by re-used/expired one-time confirmation tokens.
+
+The development app now includes optional **six-digit email OTP verification** beside the existing magic-link method. **Important:** the email-code form only works if the Supabase project's **Authentication → Email Templates → Magic Link** template is configured to send a plain `{{ .Token }}` code instead of a confirmation link. Until the template is changed, continue using the link method for already-working sessions; do not attempt to enter a link as a code. The project-level email sending rate limit still applies, and code-entry does not bypass it. Never weaken Vercel preview protection or log user OTPs. Login and independent-account isolation are still unverified in the browser.
