@@ -102,8 +102,8 @@ Local results on the completed implementation:
 
 - **92 Node tests passed**, retaining all 89 prior tests and adding three surface/
   progressive-disclosure regressions. No failures or skipped tests.
-- **625 full application browser checks passed** at 1440px and 390px, zero uncaught
-  errors, including all previous fictional/stored-fixture scenarios and 78 UX
+- **627 full application browser checks passed** at 1440px and 390px, zero uncaught
+  errors, including all previous fictional/stored-fixture scenarios and 80 UX
   assertions. Tests cover actual calendar/date node identity, retained vertical
   position/primary/document scroll, explicit selection and close restoration,
   desktop resizing, mobile modal/inert/keyboard focus behavior, navigation drawer,
@@ -117,12 +117,52 @@ Local results on the completed implementation:
   errors. `git diff --check` passes. No additional build/lint/typecheck is configured.
 
 Evidence is Git-excluded under `app/reviews/ux-structure-v01/`: `node-tests.txt`,
-`full-final/browser-results.json` (625 checks), desktop/mobile captures and
+`full-anchor-final/browser-results.json` (627 checks), desktop/mobile captures and
 `existing-demo/` output. The focused preservation run passed 175 checks; the
 focused UX run passed 83 including the shared empty-course checks. Private read
 fixtures and record signatures are never committed.
 
-Hosted read-only acceptance will be recorded after this draft preview deploys.
+### Hosted read-only acceptance — completed October 26
+
+**78 hosted checks passed**, zero captured browser errors, on application head
+`8da762370fa636e7f75fcda472ccdd4a5b3546ac` and the exact PR #6 branch origin.
+Reused the existing signed-in shared-project session, with no email request,
+credential/token copying, Auth change or live record mutation. Tested 1440px and
+390px; temporary viewport overrides were restored.
+
+Verified the sidebar/drawer, all four workspaces, settings/account controls without
+submitting them, local light/dark/accent choices, same-ID saved lesson/unit editors
+without edits, resizing, mobile modal/inert attributes and keyboard wrapping,
+read-only sample references, certainty layers, 2/4/6-week lenses, Month/Week,
+October estimates/focus, Reset/Cancel/Escape/Return, and saved course switching/reload.
+The positive result remains **4 confirmed fixture lessons / 8 tentative / 0
+unplaceable / 0 not assessed**; all 12 comparisons and full multi-day arrays are
+available under More details. The constrained saved course remains **74 confirmed /
+0 tentative / 1 unplaceable / 5 not assessed** with all 80 comparisons, 74 unchanged
+saved arrays, six protected commitments and five cannot-estimate unit ranges.
+Existing shortened-period Keep preview still assesses only the provable leading
+segment and proposes no lesson date changes. Extend remains disabled.
+
+Direct native-pointer Build submission verified unchanged document/pane scroll,
+calendar position and selected date. The automation's locator-click method itself
+performed pre-click scrolling; that driver behavior was excluded from application
+motion evidence. A defensive CSS scroll-anchoring opt-out is included, with two
+additional local assertions. Closing the proposal restores the prior calendar view;
+closing only the inspector retains its overlay for mobile calendar exploration.
+
+Before/after owner-scoped **READ ONLY SELECT** transactions under authenticated RLS,
+UTC and ROLLBACK returned identical full-record signatures and counts for **3
+courses, 7 units, 82 lessons and 12 events**. No saved row was created, edited,
+deleted, archived, restored or scheduled. Evidence stays ignored in `hosted/`:
+`results.json` (78 checks), `saved-record-signatures.json`, and desktop/mobile
+captures. No private snapshots, record IDs, owner IDs or screenshots are published.
+
+GitHub app-tests passed (92 tests) and both Vercel statuses passed on `8da7623`.
+App deployment `dpl_M3DR6HBhZ3Egag3AdgA3prmAQMxa` was READY on that exact commit,
+correct branch alias, preview target and no alias error. A subsequent report-only
+commit does not change the tested application. PR #6 stays draft against
+`pilot/app-foundation`; no merge, main/marketing change, migration, scheduling write,
+Auth setting change or production promotion occurred.
 
 ## Remaining product choices
 
