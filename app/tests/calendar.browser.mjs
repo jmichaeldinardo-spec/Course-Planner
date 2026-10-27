@@ -285,6 +285,7 @@ async function verifySampleInterface(page,width,prefix,fixture){
 }
 async function verifyUXStructure(page,width,prefix,fixture){
  const before=await page.evaluate(()=>JSON.stringify(window.testDb));
+ check(prefix+' native page scroll anchoring disabled',await page.evaluate(()=>getComputedStyle(document.body).overflowAnchor==='none'));
  check(prefix+' four persistent destinations',await page.locator('#workspace-navigation [data-private-tab]').count()===4);
  check(prefix+' calendar quiet primary workspace',await page.locator('.private-primary [aria-label="Read-only schedule diagnostics"],[data-build-result]').count()===0);
  check(prefix+' contextual desktop pane or dismissed mobile sheet',width===390?!(await page.locator('.private-inspector').isVisible()):await page.locator('.private-inspector').isVisible());
