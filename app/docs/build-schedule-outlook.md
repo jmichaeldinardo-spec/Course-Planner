@@ -11,6 +11,15 @@ collaboration Google connection. No school account or canonical document changes
 The adopted direction is one dataset and revisable three-tier presentation; the
 allocation rules below are WORKING/OPEN prototype choices, not approved 2B policy.
 
+## Current interface
+
+The newer [UX Structure v0.1 guide](ux-structure-v01.md) supersedes the screen
+layout instructions below. Build configuration/results now live in the contextual
+inspector, detailed analyses are under More details, and the calendar stays in
+place. The fixture counts, allocation policies and non-writing boundary below
+are unchanged. Use the current guide for navigation, hiding details and closing
+previews.
+
 ## Review follow-up: try both hosted scenarios
 
 The [independent review](https://github.com/jmichaeldinardo-spec/Course-Planner/pull/6#issuecomment-6430696164)
