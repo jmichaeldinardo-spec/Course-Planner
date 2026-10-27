@@ -132,3 +132,11 @@
 .tentative-event strong{font-size:.77rem}.outlook-window{font-size:.85rem!important}.outlook-capacity{padding:12px;border-left:4px solid #dcba82;background:#2d2c2b;margin:16px 0}
 .outlook-comparisons article{padding:12px;margin:12px 0;border:1px solid #647594;border-radius:8px}.outlook-comparisons dl{display:grid;grid-template-columns:1fr 1fr;gap:12px}.outlook-comparisons dd{margin:5px 0;overflow-wrap:anywhere}.planning-outlook h5{font-size:.95rem;margin:12px 0}
 @media(max-width:760px){.planning-outlook{padding:12px}.outlook-legend,.outlook-unit-grid{grid-template-columns:1fr}.outlook-legend{gap:6px}.outlook-legend>span{padding:8px}.outlook-comparisons dl{grid-template-columns:1fr}.outlook-controls{align-items:stretch;flex-direction:column}.outlook-controls label{flex-wrap:wrap}.outlook-controls select{max-width:100%}.outlook-actions>*{max-width:100%}.planning-outlook [data-private-lesson]{white-space:normal;text-align:left;max-width:100%;overflow-wrap:anywhere}}
+
+/* Temporary, read-only Build success scenario; provenance stays visible. */
+.build-sample-entry,.build-sample-notice,.build-sample-lesson{padding:16px;margin:16px 0;border:2px solid #8b679f;border-radius:12px;background:#251f35;color:#eee5f8;overflow-wrap:anywhere}
+.build-sample-notice h3,.build-sample-lesson h3{margin-top:0;color:#e3c3f5}
+.build-sample-entry button,.private-nav [data-build-sample-return],.private-nav [data-build-sample-reset],.build-sample-lesson button{min-height:44px;white-space:normal}
+.build-sample-lesson dl{display:grid;grid-template-columns:minmax(100px,1fr) minmax(0,3fr);gap:8px}
+.build-sample-lesson dt{font-weight:700}.build-sample-lesson dd{margin:0}
+@media(max-width:600px){.build-sample-lesson dl{display:block}.build-sample-lesson dd{margin:4px 0 12px}.build-sample-notice{padding:12px}}

@@ -11,6 +11,84 @@ collaboration Google connection. No school account or canonical document changes
 The adopted direction is one dataset and revisable three-tier presentation; the
 allocation rules below are WORKING/OPEN prototype choices, not approved 2B policy.
 
+## Review follow-up: try both hosted scenarios
+
+The [independent review](https://github.com/jmichaeldinardo-spec/Course-Planner/pull/6#issuecomment-6430696164)
+identified that the existing saved course correctly cannot produce positive
+forecasts. A temporary, immutable fictional success scenario now lets the teacher
+experience those forecasts without changing that comparison course or Supabase.
+
+Use the existing signed-in session at the **exact app preview**:
+https://course-planner-app-git-codex-build-schedu-45cd1a-course-planner.vercel.app/
+Refresh once to load this update. No new sign-in email or Auth change is required.
+
+### A. Positive fictional scenario — no saved data
+
+1. Open any existing saved fictional course → **Calendar & Exceptions** →
+   **Try sample Build Schedule**. The workspace changes to **FICTIONAL SUCCESS
+   SCENARIO · IN MEMORY · NOT SAVED** and the banner says **NOT your saved course**.
+   It contains 12 immutable sample lessons, three units and three sample events;
+   it is never added to the saved course list. Shared “saved/confirmed” labels in
+   this context mean fixture reference dates only.
+2. In the already-open Build configuration, choose **Use selected date
+   (2026-09-01)**, leave **Whole course**, then **Preview Build Schedule**. The
+   deliberate explicit anchor is still required. Expect **4 confirmed fixture
+   lessons / 8 tentative / 0 unplaceable / 0 not assessed**; capacity is 52 eligible
+   dates, 15 required lesson-days, four fixture reference assignments and 11
+   hypothetical day assignments. There is no scheduling Save/Apply/Confirm.
+3. Inspect September's dashed **≈ Tentative · unsaved** overlay and select
+   **September 3**. Lesson 3 spans **September 3–4** in BEFORE → PROPOSED; lesson 6
+   spans **September 11 and 14** across the weekend. The September 7 closure and
+   September 15 occupied event are skipped. The shortened September 3 Keep event
+   retains instruction. The protected September 10 checkpoint stays fixed.
+4. Expand **Tier 3 · Distant milestones**. Estimated unit ranges are **September
+   1–8**, **September 10–17**, and **October 19–23**. The checkpoint is a protected
+   fixture anchor; the October 23 assessment is an unsaved estimate. The September
+   1 four-week daily lens excludes October proposals, while its distant milestone
+   remains inspectable. Choose **Next calendar period** and **October 19** to see
+   tentative October 20–23 dates in that new focus window.
+5. Try **2/4/6 calendar weeks**, layer toggles, **Month / Week**, and date-keyboard
+   navigation. On mobile select a day marked **≈** for details. Any sample lesson
+   link opens a **fictional, read-only reference** with the same fixture ID, never
+   the private lesson editor. Scope/start edits discard the old forecast and may
+   honestly make a scoped scenario incomplete; **Reset sample** restores the
+   known positive baseline, blank anchor, September 1 and default layers.
+6. **Close Build preview**, **Cancel Build Schedule**, or **Escape** discards
+   the proposal but keeps the sample. Escape again returns to the saved course.
+   **Return to your saved course** always exits in one click, restoring its cursor
+   and display preferences with no sample proposal. A saved-course reload/switch
+   or sign-out also exits the sample. No sample state survives a page reload.
+
+### B. Constrained saved 80-lesson comparison
+
+1. Choose **Return to your saved course**. In Saved courses open **Large Restore
+   Test — Fictional Civic Systems (80 lessons) (restored)** and select **Calendar
+   & Exceptions**. Verify the private saved workspace header and **80 lessons /
+   five units / 12 events**. Leave this course unchanged.
+2. With its initial **September 9, 2026** calendar focus, choose **Build Schedule**
+   → **Use selected date** → **Whole course** → **Preview Build Schedule**.
+3. Expect **74 confirmed / 0 tentative / 1 unplaceable / 5 not assessed** with six
+   already-unscheduled lessons. All five complete unit ranges **cannot estimate**.
+   The first unscheduled lesson cannot fit before the next saved commitment even
+   though the whole term has spare capacity. All 74 saved arrays and pins remain
+   fixed, and the enabled tentative layer produces no invented dates.
+4. Expand all 80 BEFORE → PROPOSED comparisons, try horizon/layer controls, then
+   **Close Build preview** or **Saved-only view**. No saved record changes occur.
+
+### Isolation and removal boundary
+
+`build-sample.js` constructs and recursively freezes a small hardcoded fixture;
+there is no owner snapshot input, editable lesson store, persistence import,
+localStorage, Supabase call or new schema. `private-workspace.js` selects it only
+as the read-only calendar/engine input while leaving all canonical owner record
+variables untouched. `activePrivateCourseId()` remains the owner course ID.
+Sample lesson links show reference details; ordinary authoring/export/event
+controls are absent, and an explicit submit guard rejects stale authoring forms.
+The same `buildSchedule`, `planningOutlook`, outlook renderer and Month/Week
+renderer run both scenarios. Return/reset need no network fetch; an authoritative
+owner refresh safely exits the fixture. The entry and fixture can be removed
+without migrating records. This is a review aid, not new scheduling policy.
+
 ## What the teacher can try
 
 Open an existing fictional saved course → **Calendar & Exceptions**.
@@ -105,6 +183,34 @@ freshness. No Phase 2B implementation, migration or new Auth privilege is includ
   All five complete unit ranges are **cannot estimate**. Whole-term spare capacity
   does not permit shifting teacher-established later placements. No initial dates
   are fabricated or applied to this stored course.
+
+## Success-sample regression evidence
+
+Current follow-up: **89 Node tests passed**, including all 85 earlier cases and
+four fixture/engine/projection/view regressions. **545 full app browser checks
+passed** across 1440px and 390px, including the approved stored 80-lesson snapshot;
+**91 final focused sample checks passed**, including 44px reset/return targets.
+Both browser runs had zero uncaught errors. The full run contains the original
+461 checks plus the initial sample checks; the focused run adds two touch-target
+assertions. **265 existing demo checks passed**, 42 screenshots, zero errors.
+`git diff --check` passes; no additional build/lint/typecheck is configured.
+
+Sample checks cover the successful 4/8 outcome, complete multi-day arrays,
+protected/estimated assessment distinction, October milestones/horizon isolation,
+layer/lens/scope controls, Month/Week/mobile details, same-ID read-only references,
+Reset/Return/Close/Cancel/Escape, owner preferences/identity restoration, stale
+ordinary-form rejection, owner export and authoritative-refresh exit. Test-client
+reads/writes are counted: sample enter/exploration/reset/return performs **zero
+reads and zero writes**; owner records remain byte-identical. The intentional
+stale-form probe runs only in the local mock harness, never the hosted account.
+
+New local evidence is Git-excluded under
+`app/reviews/build-schedule-outlook/sample-success/`: `node-tests.txt`,
+`full/browser-results.json` (545), `final-sample/browser-results.json` (91),
+desktop/mobile screenshots and `existing-demo/` results. The existing private
+snapshot is reused read-only; no new full saved-record export was needed.
+Hosted verification of this sample update will be recorded after the draft
+branch preview finishes deploying. Earlier hosted evidence below is historical.
 
 ## Verification
 
@@ -213,10 +319,10 @@ calendar events**. No create, edit, delete, archive, restore or scheduling write
 was performed. These signatures cover public course records; normal SDK session
 refresh is not a scheduling write.
 
-Scope limit: the stored incomplete course cannot demonstrate positive tentative
-dates/estimated unit ranges under the conservative fixed-saved-date policy. Those
-outcomes remain verified by the local small and 80-lesson synthetic fixtures. No
-live records were changed to manufacture a success case. Unseen remote-edit
+Historical scope limit (resolved by the temporary sample above): the stored
+incomplete course cannot demonstrate positive tentative dates/estimated unit
+ranges under the conservative fixed-saved-date policy. No live records were
+changed to manufacture a success case. Unseen remote-edit
 freshness and scheduling transactions remain future Phase 2B requirements.
 
 Evidence stays Git-excluded under `app/reviews/build-schedule-outlook/`:
@@ -226,8 +332,8 @@ node-tests.txt, synthetic fixture screenshots and existing-demo output. The
 saved-record-signatures.json and desktop/mobile captures. No private record IDs,
 owner IDs, authentication tokens or screenshots are committed/uploaded with the PR.
 
-PR #6 remains draft against `pilot/app-foundation`; no merge or promotion. No
-application code, database/schema or Auth configuration changed in this follow-up.
+PR #6 remains draft against `pilot/app-foundation`; no merge or promotion. No database/schema or Auth configuration changed in that acceptance-only follow-up.
+The later sample implementation is described above.
 
 ## Product questions for hands-on review
 

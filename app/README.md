@@ -105,3 +105,14 @@ Choose 2/4/6 calendar weeks from the selected date, toggle layers, or use
 **Saved-only view** to discard the forecast. Unknown work stays not assessed or
 cannot estimate. No Apply/Save/Confirm action, new storage or schema is introduced.
 See [how to try it, working policies and verification](docs/build-schedule-outlook.md).
+
+
+For hands-on positive review, choose **Try sample Build Schedule** inside the
+saved calendar. This temporary, immutable 12-lesson fictional scenario uses the
+same engine and interface entirely in memory. Choose **Use selected date
+(2026-09-01)** → **Preview Build Schedule**: expect 4 confirmed fixture lessons,
+8 tentative lessons, and estimated unit ranges through October 23. No sample
+lesson editing, export, persistence or event-authoring path exists. **Return to
+your saved course** restores the original calendar and preferences in one click.
+The existing saved 80-lesson constrained course remains a separate comparison;
+see the guide for exact steps and expected blocked results.

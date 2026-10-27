@@ -1,3 +1,4 @@
+import {createBuildSample,renderBuildSampleNotice} from './build-sample.js';
 import {buildSchedule,planningOutlook} from './build-schedule.js';
 import {renderPlanningOutlook,defaultOutlookPreferences} from './planning-outlook-view.js';
 import {EVENT_TYPES,normalizeEvent} from "./event-effects.js";
@@ -35,7 +36,7 @@ const lessonFields = [
  ["textbook_map_item","Textbook map item","text"]
 ];
 let api=null, owner=null, course=null, units=[],lessons=[],exceptions=[],selectedUnit=null,selectedLesson=null,tab="sequence",dirty=false,epoch=0,editEpoch=0;
-let calendarState=null,eventDraft=null,eventPreview=null;
+let calendarState=null,eventDraft=null,eventPreview=null,sampleSession=null;
 const newOutlookState=()=>({preferences:defaultOutlookPreferences(),draft:null,result:null,notice:''});
 let outlookState=newOutlookState();
 function discardOutlook(close=false,notice=''){outlookState.result=null;if(close)outlookState.draft=null;outlookState.notice=notice;}
@@ -55,7 +56,7 @@ function formValues(form,fields){const f=new FormData(form),out={};
 }
 function canNavigate(){return !dirty || confirm("Your current changes are not saved. Discard them?");}
 function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
-function reset(){epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceDirty(){return dirty;}
@@ -68,6 +69,7 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}
   return false;
  }
  if(dirty && discardUnsaved){dirty=false;editEpoch++;}
+ if(sampleSession){leaveBuildSample();render();}
  const call=++epoch,editAtStart=editEpoch;
  api=client;owner=user;root.hidden=false;
  const sameCourse=course?.id===id;
@@ -106,14 +108,16 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}
 }
 function render(){
  if(!course)return;
+ root.setAttribute?.('aria-label',sampleSession?'Temporary fictional Build Schedule scenario':'Saved curriculum planning');
+ const display=calendarRecords();
  const currentUnit=units.find(x=>x.id===selectedUnit);
  const currentLesson=lessons.find(x=>x.id===selectedLesson);
- const nav=[["sequence","Course Sequence"],["units","Unit Planning"],["lessons","Lesson Planning"],["calendar","Calendar & Exceptions"]]
+ const nav=sampleSession?'<span>Read-only sample calendar</span><button type="button" data-build-sample-reset>Reset sample</button><button type="button" data-build-sample-return>Return to your saved course</button>':[["sequence","Course Sequence"],["units","Unit Planning"],["lessons","Lesson Planning"],["calendar","Calendar & Exceptions"]]
   .map(([k,name])=>'<button type="button" data-private-tab="'+k+'" aria-pressed="'+(tab===k)+'">'+name+'</button>').join("");
- root.innerHTML='<div class="private-header"><div><p class="private-kicker">SAVED WORKSPACE · PRIVATE ACCOUNT</p><h2>'+escapeHtml(course.name)+'</h2><p>'+units.length+' unit(s) · '+lessons.length+' lesson(s) · '+exceptions.length+' calendar exception(s)</p></div><button data-private-export type="button">Export course JSON</button></div>'+
- '<nav class="private-nav" aria-label="Private planning workspaces">'+nav+'<button type="button" data-private-reload>Reload saved data</button></nav>'+
- '<p id="private-status" role="status" aria-live="polite">Loaded from private cloud storage.</p>'+
- '<div class="private-content">'+(tab==="sequence"?renderSequence():tab==="units"?renderUnits(currentUnit):tab==="lessons"?renderLessons(currentLesson):renderCalendar())+'</div>';
+ root.innerHTML='<div class="private-header"><div><p class="private-kicker">'+(sampleSession?"FICTIONAL SUCCESS SCENARIO · IN MEMORY · NOT SAVED":"SAVED WORKSPACE · PRIVATE ACCOUNT")+'</p><h2>'+escapeHtml(display.course.name)+'</h2><p>'+display.units.length+' unit(s) · '+display.lessons.length+' lesson(s) · '+display.exceptions.length+' calendar exception(s)</p></div>'+(sampleSession?'':'<button data-private-export type="button">Export course JSON</button>')+'</div>'+
+ '<nav class="private-nav" aria-label="Private planning workspaces">'+nav+(sampleSession?'':'<button type="button" data-private-reload>Reload saved data</button>')+'</nav>'+
+ '<p id="private-status" role="status" aria-live="polite">'+(sampleSession?"Temporary fictional sample — no database connection or writes from sample controls.":"Loaded from private cloud storage.")+'</p>'+
+ '<div class="private-content">'+(sampleSession?renderCalendar():tab==="sequence"?renderSequence():tab==="units"?renderUnits(currentUnit):tab==="lessons"?renderLessons(currentLesson):renderCalendar())+'</div>';
 }
 function renderSequence(){
  return '<p>One authoritative list of saved lessons. Select a lesson to edit its shared record.</p>'+
@@ -141,10 +145,27 @@ function renderLessons(current){
  const create=units.length?'<details class="private-new-form"><summary>Add lesson</summary><form data-private-create="lessons" class="private-form-grid"><label>Unit<select name="unit_id">'+unitOptions+'</select></label><label>Lesson title<input name="title" required maxlength="180"></label><label>Sequence position<input type="number" name="position" min="1" required value="'+(lessons.length+1)+'"></label><button type="submit">Create lesson</button></form></details>':'<p>Create a unit before adding lessons.</p>';
  return '<p>Lesson details and Course Sequence refer to the same saved lesson record. Blank fields are optional.</p>'+existing+create;
 }
-function calendarRecords(){return {course,units,lessons,exceptions};}
+function savedCalendarRecords(){return {course,units,lessons,exceptions};}
+function calendarRecords(){return sampleSession?.records||savedCalendarRecords();}
+function resetBuildSample(){
+ sampleSession.records=createBuildSample();sampleSession.lessonId=null;
+ calendarState={view:'month',anchor:sampleSession.records.course.first_day,selected:sampleSession.records.course.first_day};
+ outlookState=newOutlookState();outlookState.draft={startDate:'',unitId:null,expectedSnapshot:schedulingSnapshotToken(sampleSession.records)};
+ eventDraft=null;eventPreview=null;
+}
+function enterBuildSample(){
+ if(!canNavigate())return;
+ discardOutlook(true);eventDraft=null;eventPreview=null;
+ sampleSession={savedCalendarState:calendarState,savedOutlookState:outlookState,records:null,lessonId:null};resetBuildSample();renderWithFocus('#build-sample-title');
+}
+function leaveBuildSample(){
+ if(!sampleSession)return;
+ calendarState=sampleSession.savedCalendarState;outlookState=sampleSession.savedOutlookState;sampleSession=null;
+ eventDraft=null;eventPreview=null;discardOutlook(true,'Returned from the temporary sample. Your saved records remain unchanged.');
+}
 function renderCalendar(){
  const records=calendarRecords(),outlook=planningOutlook(records,outlookState.result,{focusDate:calendarState.selected,weeks:outlookState.preferences.weeks});
- return renderPlanningOutlook(records,outlookState,outlook)+renderSavedCalendar(records,calendarState,{confirmed:outlookState.preferences.confirmed,byDate:outlookState.preferences.tentative?outlook.byDate:{}})+renderSchedulingPreview(records,eventDraft,eventPreview);
+ return (sampleSession?renderBuildSampleNotice(records,sampleSession.lessonId):'<section class="build-sample-entry"><button type="button" data-build-sample-open>Try sample Build Schedule</button><p>Explore a temporary fictional success scenario using this same engine and calendar. It never changes your saved course and has a one-click return.</p></section>')+renderPlanningOutlook(records,outlookState,outlook)+renderSavedCalendar(records,calendarState,{confirmed:outlookState.preferences.confirmed,byDate:outlookState.preferences.tentative?outlook.byDate:{},allowEventPreview:!sampleSession})+(sampleSession?'':renderSchedulingPreview(records,eventDraft,eventPreview));
 }
 function readBuildDraft(form){const values=new FormData(form);return {...outlookState.draft,startDate:String(values.get('startDate')||''),unitId:String(values.get('unitId')||'')||null};}
 function readEventDraft(form){
@@ -152,6 +173,7 @@ function readEventDraft(form){
 }
 function closeEventPreview(){eventDraft=null;eventPreview=null;renderWithFocus('[data-event-open=""]');}
 function openEventPreview(id){
+ if(sampleSession)return;
  if(!canNavigate())return;
  discardOutlook(true,'Build forecast discarded while exploring a separate event proposal.');
  const event=id?exceptions.find(e=>e.id===id):null;if(id&&!event){status("Event no longer available; reload saved data.","error");return;}
@@ -167,6 +189,7 @@ function selectCalendarDay(date){
 }
 root.addEventListener("keydown",e=>{
  if(e.key==='Escape'&&tab==='calendar'&&(outlookState.draft||outlookState.result)){e.preventDefault();discardOutlook(true);renderWithFocus('[data-outlook-open]');return;}
+ if(e.key==='Escape'&&sampleSession){e.preventDefault();leaveBuildSample();renderWithFocus('[data-build-sample-open]');return;}
  if(e.key==="Escape"&&eventDraft&&e.target.closest('.event-preview-panel')){e.preventDefault();closeEventPreview();return;}
  const date=e.target.dataset?.privateCalendarDay;if(!date||tab!=="calendar")return;
  const offsets={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7,Home:0,End:6};
@@ -174,6 +197,7 @@ root.addEventListener("keydown",e=>{
  selectCalendarDay(addCalendarDays(e.key==="Home"||e.key==="End"?weekStart(date):date,offsets[e.key]));
 });
 function exportCourse(){
+ if(sampleSession){status("The sample is not exportable. Return to your saved course for saved-record exports.");return;}
  if(!course || dirty){status("Save or discard changes before exporting.","error");return;}
  const json={schema:"course-planner.pilot-export.v1",exportedAt:new Date().toISOString(),course,units,lessons,calendarExceptions:exceptions};
  const blob=new Blob([JSON.stringify(json,null,2)],{type:"application/json"});
@@ -184,12 +208,16 @@ function exportCourse(){
 root.addEventListener("input",e=>{
  const buildForm=e.target.closest('[data-build-schedule-form]');
  if(buildForm&&outlookState.draft){const hadResult=!!outlookState.result;outlookState.draft=readBuildDraft(buildForm);discardOutlook(false,'Preview configuration changed. Build again to see current hypothetical dates.');if(hadResult)renderWithFocus('[data-build-schedule-form] [name="'+e.target.name+'"]');return;}
- if(e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);
+ if(!sampleSession&&e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);
  const form=e.target.closest("[data-event-preview-form]");if(form&&eventDraft){eventDraft=readEventDraft(form);eventPreview=null;const stale=root.querySelector('[aria-labelledby="scheduling-preview-title"]');if(stale)stale.hidden=true;}
 });
 root.addEventListener("click",async e=>{
  const button=e.target.closest("button");if(!button)return;
- if(button.matches('[data-outlook-open]')){
+ if(button.matches('[data-build-sample-open]')){enterBuildSample();}
+ else if(button.matches('[data-build-sample-return]')){leaveBuildSample();renderWithFocus('[data-build-sample-open]');}
+ else if(button.matches('[data-build-sample-reset]')){if(!sampleSession)return;resetBuildSample();renderWithFocus('#build-sample-title');}
+ else if(button.matches('[data-build-sample-close-lesson]')){if(!sampleSession)return;sampleSession.lessonId=null;renderWithFocus('#build-sample-title');}
+ else if(button.matches('[data-outlook-open]')){
   if(!canNavigate())return;eventDraft=null;eventPreview=null;
   outlookState.draft={startDate:'',unitId:null,expectedSnapshot:schedulingSnapshotToken(calendarRecords())};discardOutlook();renderWithFocus('#build-config-title');
  }
@@ -209,10 +237,13 @@ root.addEventListener("click",async e=>{
   calendarState.anchor=date;calendarState.selected=date;dirty=false;
   renderWithFocus('[data-private-calendar-period="'+step+'"]');
  }
- else if(button.matches("[data-private-tab]")){if(!canNavigate())return;tab=button.dataset.privateTab;if(tab!=="calendar"){eventDraft=null;eventPreview=null;discardOutlook(true);}dirty=false;render();}
- else if(button.matches("[data-private-lesson]")){if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;eventDraft=null;eventPreview=null;discardOutlook(true);tab="lessons";dirty=false;renderWithFocus('[data-private-save="lessons"] input[name="title"]');}
+ else if(button.matches("[data-private-tab]")){if(sampleSession)leaveBuildSample();if(!canNavigate())return;tab=button.dataset.privateTab;if(tab!=="calendar"){eventDraft=null;eventPreview=null;discardOutlook(true);}dirty=false;render();}
+ else if(button.matches("[data-private-lesson]")){
+  if(sampleSession){if(!sampleSession.records.lessons.some(l=>l.id===button.dataset.privateLesson))return;sampleSession.lessonId=button.dataset.privateLesson;renderWithFocus('#build-sample-lesson-title');return;}
+  if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;eventDraft=null;eventPreview=null;discardOutlook(true);tab="lessons";dirty=false;renderWithFocus('[data-private-save="lessons"] input[name="title"]');}
  else if(button.matches("[data-private-export]"))exportCourse();
  else if(button.matches("[data-private-reload]")){
+  if(sampleSession)leaveBuildSample();
   if(dirty && !confirm("Discard your unsaved edits and reload saved course data?"))return;
   discardOutlook(true,'Saved data reloaded. Build again to inspect a fresh forecast.');
   await openPrivateCourse(api,owner,course.id,{discardUnsaved:true});
@@ -239,6 +270,7 @@ root.addEventListener("submit",async e=>{
   if(!outlookState.draft||tab!=='calendar')return;
   outlookState.draft=readBuildDraft(form);outlookState.result=buildSchedule(calendarRecords(),outlookState.draft);outlookState.notice='';renderWithFocus('#build-schedule-title');return;
  }
+ if(sampleSession){status("This temporary fictional scenario is read-only. Nothing was saved.");return;}
  if(form.matches("[data-event-preview-form]")){
   if(!eventDraft||tab!=="calendar")return;eventDraft=readEventDraft(form);eventPreview=previewSchedulingEvent(calendarRecords(),eventDraft);renderWithFocus('#scheduling-preview-title');return;
  }
