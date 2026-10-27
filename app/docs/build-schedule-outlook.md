@@ -160,23 +160,74 @@ GitHub app-tests and Vercel preview checks pass. Vercel deployment
 `dpl_6JudDHj3iNX2dkkBckEujmeFmeVP` is READY on that branch/commit, with the exact
 branch alias above, no alias error and preview target (not production).
 
-Hosted signed-in acceptance remains pending. Opening Chrome timed out while
-creating a tab, leaving it blank. The browser security gate then rejected access
-to that invalid blank URL. No workaround or alternate browser surface was used;
-the user was asked to open the exact valid preview and report whether Saved courses
-is visible. No sign-in email, Auth configuration/privilege change or token copying
-was attempted. A new branch origin must not be assumed to share another branch's
-Supabase session. Vercel READY and local tests are not hosted signed-in acceptance.
+### Hosted signed-in read-only acceptance — completed October 26
 
-If an authenticated session is unavailable, keep this acceptance pending; do not
-substitute a different branch's signed-in test. Any completed hosted read-only pass
-must compare full saved-record signatures/counts before and after. No live
-Supabase query, schema or saved-data write has been performed for this prototype.
+**50 hosted checks passed, 0 captured browser errors**, using the existing
+shared-project account session on the exact PR #6 origin. Tested head:
+`b722a7e9e3cafc58ed3ca7b447b4ef9f79db4e74`; its application code is identical to
+`32bc761f20e18c500950f633b9e34ca7020cfa75`. This follow-up changes only the report.
+The earlier browser/authentication blocker is resolved. The exact redirect had
+been added separately with explicit user approval, preserving the Site URL and
+all three earlier redirects. No email, Auth setting change, session/token copying,
+new saved fixture or restore was performed during this acceptance run.
 
-Evidence belongs only in Git-excluded `app/reviews/build-schedule-outlook/`:
+Verified on the hosted app at desktop (1440px) and mobile (390px):
+
+- Exact-origin shared-project sign-in and three unique saved-course buttons,
+  including after authenticated reload; no duplicate rendering.
+- Three distinct textual certainty tiers; planning status and taught-date
+  assumptions remain separate. Default four-week horizon starts at the historical
+  selected Sep 9 date, not today's date. 2/4/6 weeks and changing focus update the
+  display window while the explicit Build anchor stays unchanged.
+- Explicit initially blank required start, deliberate Use selected date action,
+  focused configuration/result headings, and no scheduling Apply/Save/Confirm button.
+- Whole-course Build reports **74 confirmed / 0 tentative / 1 unplaceable / 5 not
+  assessed**, with six already-unscheduled lessons. All 80 BEFORE comparisons
+  remain available; all 74 saved arrays, six protected commitments and saved
+  multi-day arrays are retained. No hypothetical date is fabricated.
+- Capacity stays whole-course: 93 eligible dates, 92 required days, 86 saved
+  assignments and seven unused eligible dates. The first unscheduled lesson still
+  cannot fit before the next saved commitment; distant spare capacity is not
+  permission to move teacher-established placements.
+- All five unit ranges and unscheduled assessment anchors explicitly say cannot
+  estimate. Confirmed/tentative/milestone toggles work reversibly; hidden saved
+  placements still constrain the proposal. The impossible baseline produces no
+  tentative overlay even when that layer is enabled.
+- Unit-scoped Build retains 80 comparisons and whole-course capacity. Start/scope
+  edits discard older results. Explicit reload discards configuration and proposal
+  after its asynchronous read completes; the driver waits for that completion.
+- Course switch resets preferences and discards forecasts. Returning to the
+  80-lesson course brings no stale proposal. Same-ID calendar navigation opens the
+  saved lesson editor without editing, and leaving Calendar discards Build state.
+- Close, Cancel and Escape (including with focus on the calendar) discard Build
+  and restore focus. Saved-only restores confirmed placements and hides the other
+  layers. Existing event Keep preview remains functional and separate from Build.
+- Month/Week, seven-day Week, keyboard date focus, mobile saved markers and pin
+  accessible labels, 44px Build target and no horizontal overflow. Temporary
+  browser viewport overrides were reset to the user's normal viewport.
+
+**No saved records changed.** Before/after SELECT-only READ ONLY transactions,
+using matching-owner authenticated RLS with UTC and ROLLBACK, returned identical
+full-record signatures and counts for **3 courses, 7 units, 82 lessons and 12
+calendar events**. No create, edit, delete, archive, restore or scheduling write
+was performed. These signatures cover public course records; normal SDK session
+refresh is not a scheduling write.
+
+Scope limit: the stored incomplete course cannot demonstrate positive tentative
+dates/estimated unit ranges under the conservative fixed-saved-date policy. Those
+outcomes remain verified by the local small and 80-lesson synthetic fixtures. No
+live records were changed to manufacture a success case. Unseen remote-edit
+freshness and scheduling transactions remain future Phase 2B requirements.
+
+Evidence stays Git-excluded under `app/reviews/build-schedule-outlook/`:
 full browser-results.json (461 checks), focused-final-summary.json (161 checks),
-node-tests.txt, synthetic/stored fixture screenshots and existing-demo output.
-No private snapshots, owner IDs or screenshots are committed or uploaded with the PR.
+node-tests.txt, synthetic fixture screenshots and existing-demo output. The
+`hosted-acceptance/` subfolder contains results.json (50 hosted checks),
+saved-record-signatures.json and desktop/mobile captures. No private record IDs,
+owner IDs, authentication tokens or screenshots are committed/uploaded with the PR.
+
+PR #6 remains draft against `pilot/app-foundation`; no merge or promotion. No
+application code, database/schema or Auth configuration changed in this follow-up.
 
 ## Product questions for hands-on review
 
