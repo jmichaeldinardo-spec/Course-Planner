@@ -209,8 +209,42 @@ New local evidence is Git-excluded under
 `full/browser-results.json` (545), `final-sample/browser-results.json` (91),
 desktop/mobile screenshots and `existing-demo/` results. The existing private
 snapshot is reused read-only; no new full saved-record export was needed.
-Hosted verification of this sample update will be recorded after the draft
-branch preview finishes deploying. Earlier hosted evidence below is historical.
+### Hosted acceptance of the success sample — completed October 26
+
+**70 hosted read-only checks passed**, zero captured browser errors, on application
+commit `bc8e95f597868613b945979b3ba04c9fd4923a76`, using the existing signed-in
+session on the exact PR #6 origin. Verified both the success sample and constrained
+saved course at 1440px and 390px, then restored the normal viewport. No new email,
+Auth change, token copying or live mutation was used.
+
+Positive checks verify the real 4 confirmed / 8 tentative result, seven September
+hypothetical dates, 12 complete comparisons, multi-day arrays, three estimated unit
+ranges, protected and estimated assessment anchors, no October daily clutter in
+the September lens, October focus revealing four tentative dates, 2/4/6-week
+controls, layer toggles, Month/Week/mobile details, same-ID read-only lesson
+references, Reset/Cancel/Close/Escape/one-click Return, separate counts/provenance,
+no authoring/export/event controls, and the unchanged three-course list.
+
+The saved comparison still reports **74 confirmed / 0 tentative / 1 unplaceable /
+5 not assessed**, no tentative overlay and five cannot-estimate ranges. All 80
+comparisons, 74 saved arrays and six protected commitments remain intact. Reload
+returns the original 80-lesson owner course without a sample proposal.
+
+Before/after owner-scoped **READ ONLY SELECT** transactions with authenticated RLS,
+UTC and ROLLBACK returned identical full-record signatures and counts for **3
+courses, 7 units, 82 lessons and 12 events**. No saved row was created, changed,
+deleted, archived, restored or scheduled. Evidence is in the ignored
+`sample-success/hosted/` folder (`results.json`, `saved-record-signatures.json`,
+desktop/mobile captures); no private snapshots, IDs or screenshots are published.
+
+Exact application deployment: `dpl_DCELZtySypMm9EQJksZMGiKYurtS`, READY on
+`bc8e95f`, correct branch alias, preview target and no alias error. Exact-head
+GitHub app-tests passed (89 tests), and both Vercel statuses passed. A later
+report-only commit may be the PR head; it does not change the tested application.
+PR #6 remains draft against `pilot/app-foundation`. No merge, production promotion,
+main/marketing edit, Auth/schema change or Phase 2B implementation occurred.
+
+The original verification and earlier 50-check hosted run below are historical.
 
 ## Verification
 
