@@ -16,7 +16,13 @@ async function refresh(){
  const {data:{session},error}=await client.auth.getSession();
  if(call!==refreshEpoch)return;
  const currentUser=session?.user||null;
- if(user?.id!==currentUser?.id){if(user&&currentUser)clearPrivateWorkspace();setWorkspaceAccount(currentUser?.id||null);}
+ if(user?.id!==currentUser?.id){
+  // Account-bound form drafts and selected restore files must not follow the
+  // next user. Same-account token refreshes keep their unfinished inputs.
+  authForm.reset();courseForm.reset();restoreForm.reset();
+  restoreStatus.textContent="";backupStatus.textContent="";
+  if(user&&currentUser)clearPrivateWorkspace();setWorkspaceAccount(currentUser?.id||null);
+ }
  user=currentUser;setDashboardAccount(user);
  authStatus.textContent=error?"Unable to check sign-in: "+error.message:user?"Signed in: "+user.email:"Not signed in";
  authForm.hidden=!!user;byId("auth-hint").hidden=!!user;signout.hidden=!user;courseForm.hidden=!user;restoreDetails.hidden=!user;backupButton.hidden=!user;list.replaceChildren();setWorkspaceCourses([]);
