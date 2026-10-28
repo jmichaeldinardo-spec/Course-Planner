@@ -7,6 +7,7 @@ import {previewSchedulingEvent,schedulingSnapshotToken} from "./scheduling-previ
 import {renderSchedulingPreview} from "./scheduling-preview-view.js";
 import {isCalendarDate,calendarDateLabel,addCalendarDays,shiftCalendarMonth,weekStart,todayInCourse,activeCalendarRecords} from "./calendar-model.js";
 import {renderSavedCalendar} from "./calendar-view.js";
+import {readCompleteCourse,makeCourseExport} from './course-snapshot.js';
 
 /* Private Course Planner vertical slice: real, owner-isolated Supabase records.
  * The fictional preview remains separate and is NEVER a source of persisted data. */
@@ -43,7 +44,7 @@ let outlookState=newOutlookState();
 let inspector={open:false,kind:"none",width:360},buildReturnView=null,lastStatus={message:"",kind:"info"};
 function discardOutlook(close=false,notice=''){outlookState.result=null;if(close)outlookState.draft=null;outlookState.notice=notice;}
 
-function status(message,kind="info"){lastStatus={message,kind};const e=$("private-status");if(e){e.textContent=message;e.dataset.kind=kind;}const note=root.querySelector?.('[data-inspector-status]');if(note){note.textContent=message;note.dataset.kind=kind;note.hidden=!['error','pending'].includes(kind)&&!message.startsWith('Saved and verified');}}
+function status(message,kind="info"){lastStatus={message,kind};const e=$("private-status");if(e){e.textContent=message;e.dataset.kind=kind;e.classList?.toggle('sr-only',kind!=='error');}const note=root.querySelector?.('[data-inspector-status]');if(note){note.textContent=message;note.dataset.kind=kind;note.hidden=!['error','pending'].includes(kind)&&!message.startsWith('Saved and verified');}}
 function field([name,label,type,options],value){
  const text=escapeHtml(value??"");
  if(type==="select")return '<label class="private-field">'+escapeHtml(label)+'<select name="'+name+'">'+options.map(x=>'<option value="'+escapeHtml(x)+'"'+(x===value?' selected':'')+'>'+escapeHtml(x)+'</option>').join("")+'</select></label>';
@@ -122,22 +123,16 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false,pre
  const sameCourse=course?.id===id;
  if(sameCourse)status("Checking saved records…");
  else if(!course)root.innerHTML='<p role="status">Loading your saved course…</p>';
- const [c,u,l,e]=await Promise.all([
-  client.from("courses").select("*").eq("id",id).single(),
-  client.from("units").select("*").eq("course_id",id).order("position"),
-  client.from("lessons").select("*").eq("course_id",id).order("position"),
-  client.from("calendar_exceptions").select("*").eq("course_id",id).order("date")
- ]);
+ let records,readError;
+ try{records=await readCompleteCourse(client,user,id,{isCurrent:()=>call===epoch&&editEpoch===editAtStart&&(!dirty||switching&&preserveContext)});}catch(err){readError=err;}
  if(call!==epoch)return false;
  // An edit made after the request started must take priority over its reply.
  if((dirty&&!(switching&&preserveContext)) || editEpoch!==editAtStart){
   status("Unsaved changes preserved. The saved version can be reloaded after you save or discard your draft.","pending");
   return false;
  }
- const firstError=[c.error,u.error,l.error,e.error].find(Boolean);
- if(firstError){if(sameCourse)status("Reload failed; current editor preserved: "+firstError.message,"error");else{status("Unable to open private course: "+firstError.message,"error");}return false;}
- if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else status("Course unavailable for this account.","error");return false;}
- // Refresh Home from paginated metadata, never the editor's potentially capped read.
+ if(readError){const message=(sameCourse?'Reload failed; current editor preserved: ':'Unable to open private course: ')+readError.message;if(!course)root.innerHTML='<p role="alert">'+escapeHtml(message)+'</p>';status(message,'error');const notice=$('storage-status');if(notice)notice.textContent=message;return false;}
+ // Home and Dashboard keep their own metadata projections of these saved records.
  void refreshWorkspaceCourseSummary(client,id);
  // Cache only after the target passes the same authenticated owner-scoped read.
  api=client;owner=user;
@@ -145,10 +140,10 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false,pre
  const previous=preserveContext?courseContexts.get(id):null;
  if(previous){courseContexts.delete(id);restoreContext(previous);status(dirty?"Unsaved course draft restored. Save to store it.":"Workspace restored. Reload saved data to check for newer records.",dirty?"pending":"info");return true;}
  if(switching){root.replaceChildren();dirty=false;selectedUnit=null;selectedLesson=null;tab="sequence";sampleSession=null;}
- const nextRecords={course:c.data,units:u.data||[],lessons:l.data||[],exceptions:e.data||[]};
+ const nextRecords=records;
  if(!sameCourse)outlookState=newOutlookState();
  else if((outlookState.result||outlookState.draft)&&schedulingSnapshotToken(nextRecords)!==schedulingSnapshotToken(calendarRecords()))discardOutlook(true,'Saved inputs changed. The old Build forecast was discarded; build again.');
- course=c.data;units=u.data||[];lessons=l.data||[];exceptions=e.data||[];
+ ({course,units,lessons,exceptions}=records);
  if(!sameCourse){eventDraft=null;eventPreview=null;inspector.open=false;inspector.kind="none";buildReturnView=null;}
  if(sameCourse&&eventDraft&&eventPreview)eventPreview=previewSchedulingEvent({course,units,lessons,exceptions},eventDraft);
  if(!sameCourse||!calendarState){
@@ -323,14 +318,22 @@ root.addEventListener("keydown",e=>{
  if(!(e.key in offsets))return;e.preventDefault();
  selectCalendarDay(addCalendarDays(e.key==="Home"||e.key==="End"?weekStart(date):date,offsets[e.key]));
 });
-function exportCourse(){
+let exportRequest=0;
+async function exportCourse(){
  if(sampleSession){status("The sample is not exportable. Return to your saved course for saved-record exports.");return;}
- if(!course || dirty){status("Save or discard changes before exporting.","error");return;}
- const json={schema:"course-planner.pilot-export.v1",exportedAt:new Date().toISOString(),course,units,lessons,calendarExceptions:exceptions};
- const blob=new Blob([JSON.stringify(json,null,2)],{type:"application/json"});
+ if(!course || dirty||saving){status("Save or discard changes before exporting.","error");return;}
+ const client=api,user=owner,id=course.id,request=++exportRequest,readEpoch=epoch,editAtStart=editEpoch,button=root.querySelector('[data-private-export]');
+ const isCurrent=()=>request===exportRequest&&epoch===readEpoch&&editEpoch===editAtStart&&owner?.id===user.id&&course?.id===id&&!dirty&&!saving&&!sampleSession;
+ if(button)button.disabled=true;status('Verifying a complete saved course export…');
+ try{
+ const {json,text}=await makeCourseExport(client,user,id,{isCurrent});
+ if(!isCurrent())throw new Error('Workspace changed. No export was created.');
+ const blob=new Blob([text],{type:"application/json"});
  const link=document.createElement("a"),url=URL.createObjectURL(blob);
- link.href=url;link.download="course-planner-"+course.id+".json";document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
- status("Export created from your last retrieved saved records. This is not an automated backup.","saved");
+ try{link.href=url;link.download="course-planner-"+id+".json";document.body.append(link);link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ status('Verified saved export: '+json.units.length+' units · '+json.lessons.length+' lessons · '+json.calendarExceptions.length+' calendar exceptions.','saved');
+ }catch(err){if(owner?.id===user.id&&course?.id===id)status('Export failed: '+err.message+' No file was created.','error');}
+ finally{if(button)button.disabled=false;}
 }
 root.addEventListener("input",e=>{
  const buildForm=e.target.closest('[data-build-schedule-form]');
