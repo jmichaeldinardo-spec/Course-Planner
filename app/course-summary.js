@@ -8,7 +8,7 @@ export function summarizeCourse(course,units,lessons){
  const active=activeCalendarRecords({course,units,lessons});
  return {units:active.units.length,lessons:active.lessons.length};
 }
-async function readMetadata(client,table,courseId,columns,max){
+export async function readMetadata(client,table,courseId,columns,max){
  const rows=[];
  for(let start=0;start<=max;start+=500){
   const {data,error}=await client.from(table).select(columns).eq('course_id',courseId).order('id').range(start,start+499);

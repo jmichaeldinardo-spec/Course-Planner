@@ -1,3 +1,4 @@
+import {refreshDashboardCourse} from './dashboard.js';
 import {readCourseSummary,summaryLabel} from './course-summary.js';
 // All presentation/context in this milestone is page-memory only, never Auth settings.
 const byId=id=>document.getElementById(id);
@@ -30,7 +31,7 @@ async function loadSummary(client,row,generation){
  courseSummaries.set(row.id,summary);updateSummaryLabel(row.id);
 }
 export async function refreshWorkspaceCourseSummary(client,id){
- const row=courses.find(row=>row.id===id);if(accountId&&row)await loadSummary(client,row,summaryGeneration);
+ const row=courses.find(row=>row.id===id);if(accountId&&row){void refreshDashboardCourse(client,id);await loadSummary(client,row,summaryGeneration);}
 }
 export async function refreshWorkspaceSummaries(client){
  const generation=summaryGeneration,queue=[...courses];
@@ -43,9 +44,14 @@ function renderCourseEntries(){
  list.replaceChildren(...courses.map(row=>{const li=document.createElement('li');li.append(courseButton(row));const edit=document.createElement('button');edit.type='button';edit.dataset.courseIcon=row.id;edit.textContent='⋯';edit.className='course-icon-edit';edit.setAttribute('aria-label','Change icon for '+row.name);edit.title='Change course icon (this session)';li.append(edit);return li;}));
  home.replaceChildren(...courses.map(row=>courseButton(row,true)));if(!courses.length)home.textContent=accountId?'No courses yet. Create your first course to begin.':'';
 }
-export function syncWorkspaceShell(course,tab,isSample=false){
+export function setContinueContext(context={}){
+ const node=byId('continue-context'),fallback=byId('continue-fallback');
+ if(node)node.textContent=currentCourse?[currentCourse.name,context.view||'Workspace',context.lesson||'',context.dirty?'Unsaved edits':''].filter(Boolean).join(' · '):'';
+ if(fallback)fallback.hidden=!!currentCourse;
+}
+export function syncWorkspaceShell(course,tab,isSample=false,context={}){
  if(typeof document==='undefined')return;currentCourse=course;currentTab=tab;sample=isSample;
- document.body.classList.toggle('has-private-course',!!course);
+ document.body.classList.toggle('has-private-course',!!course);setContinueContext(context);
  const name=byId('workspace-course-name');if(name){name.textContent=course?.name||'Choose a course';name.dataset.courseId=course?.id||'';}
  const badge=byId('workspace-sample-badge');if(badge)badge.hidden=!sample;
  const auth=document.querySelector('.pilot-auth'),slot=byId(course?'settings-account-slot':'account-home');if(auth&&slot&&auth.parentElement!==slot)slot.append(auth);

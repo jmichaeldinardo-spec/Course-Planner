@@ -1,6 +1,7 @@
+import {setDashboardAccount,beginDashboardRefresh,setDashboardError,loadDashboard,dashboardNavigationStatus} from './dashboard.js';
 import {setWorkspaceAccount,setWorkspaceCourses,refreshWorkspaceSummaries,showWorkspaceDestination} from "./workspace-shell.js";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
-import { openPrivateCourse, clearPrivateWorkspace, activePrivateCourseId, isPrivateWorkspaceBusy, isPrivateWorkspaceDirty } from "./private-workspace.js";
+import { openPrivateCourse, clearPrivateWorkspace, activePrivateCourseId, isPrivateWorkspaceBusy, isPrivateWorkspaceDirty, openDashboardDestination } from "./private-workspace.js";
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
 import { makeAccountBackup } from "./backup.js";
 const client=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
@@ -16,17 +17,17 @@ async function refresh(){
  if(call!==refreshEpoch)return;
  const currentUser=session?.user||null;
  if(user?.id!==currentUser?.id){if(user&&currentUser)clearPrivateWorkspace();setWorkspaceAccount(currentUser?.id||null);}
- user=currentUser;
+ user=currentUser;setDashboardAccount(user);
  authStatus.textContent=error?"Unable to check sign-in: "+error.message:user?"Signed in: "+user.email:"Not signed in";
  authForm.hidden=!!user;byId("auth-hint").hidden=!!user;signout.hidden=!user;courseForm.hidden=!user;restoreDetails.hidden=!user;backupButton.hidden=!user;list.replaceChildren();setWorkspaceCourses([]);
  if(!user){clearPrivateWorkspace();storageStatus.textContent="Sign in to access private saved courses. The interactive demonstration below does not save changes.";return;}
- storageStatus.textContent="Loading private courses…";
+ beginDashboardRefresh();storageStatus.textContent="Loading private courses…";
  const {data,error:readError}=await client.from("courses").select("id,name,revision,updated_at").order("updated_at",{ascending:false});
  if(call!==refreshEpoch)return;
- if(readError){storageStatus.textContent="Could not load courses: "+readError.message;return;}
+ if(readError){setDashboardError();storageStatus.textContent="Could not load courses: "+readError.message;return;}
  storageStatus.textContent=data.length?data.length+" saved course(s).":"No saved courses yet. Create your first course.";
  setWorkspaceCourses(data);
- void refreshWorkspaceSummaries(client);
+ void refreshWorkspaceSummaries(client);void loadDashboard(client,currentUser,data);
  const prior=activePrivateCourseId();const toOpen=data.find(x=>x.id===prior)?.id||data[0]?.id;
  if(toOpen){if(!isPrivateWorkspaceDirty())await openPrivateCourse(client,currentUser,toOpen);}else clearPrivateWorkspace();
  }catch(err){if(call===refreshEpoch)authStatus.textContent="Sign-in check failed: "+err.message;}
@@ -34,6 +35,13 @@ async function refresh(){
 async function selectCourse(event){const b=event.target.closest("[data-private-open]");if(!b||!user)return;if(b.dataset.privateOpen===activePrivateCourseId()){showWorkspaceDestination("workspace");return;}const selectedUser=user;try{const ok=await openPrivateCourse(client,selectedUser,b.dataset.privateOpen,{preserveContext:true});if(ok&&user?.id===selectedUser.id)showWorkspaceDestination("workspace");}catch(err){storageStatus.textContent="Could not open course: "+err.message;}}
 list.addEventListener("click",selectCourse);
 byId("home-courses").addEventListener("click",selectCourse);
+byId('dashboard-content').addEventListener('click',async event=>{
+ if(event.target.closest('[data-dashboard-retry]')){await refresh();return;}
+ const b=event.target.closest('[data-dashboard-course]');if(!b||!user)return;
+ const selectedUser=user;b.disabled=true;dashboardNavigationStatus('Opening saved planning…');
+ try{const result=await openDashboardDestination(client,selectedUser,{courseId:b.dataset.dashboardCourse,lessonId:b.dataset.dashboardLesson||null,date:b.dataset.dashboardDate||null});if(user?.id===selectedUser.id)dashboardNavigationStatus(result.ok?'':result.message);}catch{if(user?.id===selectedUser.id)dashboardNavigationStatus('Could not open this saved item. Your workspace was preserved.');}
+ finally{if(b.isConnected)b.disabled=false;}
+});
 authForm.addEventListener("submit",async e=>{e.preventDefault();const btn=authForm.querySelector("button");btn.disabled=true;authStatus.textContent="Requesting sign-in email…";const email=byId("auth-email").value.trim();const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error){authStatus.textContent=/rate limit/i.test(error.message)?"Supabase email rate limit reached. Do not retry immediately; wait for the limit to reset.": "Sign-in email failed: "+error.message;}else{authStatus.textContent="Check your email for a sign-in link. Open it once in this same browser after authorizing Vercel preview access."; }btn.disabled=false;});
 signout.addEventListener("click",async()=>{if(isPrivateWorkspaceDirty()&&!confirm("You have unsaved edits. Sign out without saving?"))return;signout.disabled=true;const {error}=await client.auth.signOut();if(error)authStatus.textContent="Sign-out failed: "+error.message;await refresh();signout.disabled=false;});
 courseForm.addEventListener("submit",async e=>{

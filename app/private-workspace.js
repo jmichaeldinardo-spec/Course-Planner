@@ -1,4 +1,4 @@
-import {syncWorkspaceShell,showWorkspaceDestination,refreshWorkspaceCourseSummary} from './workspace-shell.js';
+import {syncWorkspaceShell,showWorkspaceDestination,refreshWorkspaceCourseSummary,setContinueContext} from './workspace-shell.js';
 import {createBuildSample,renderBuildSampleNotice} from './build-sample.js';
 import {buildSchedule,planningOutlook} from './build-schedule.js';
 import {renderPlanningOutlook,defaultOutlookPreferences} from './planning-outlook-view.js';
@@ -60,6 +60,34 @@ function canNavigate(){if(!dirty)return true;const discard=confirm("Your current
 function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
 let saving=false;
 const courseContexts=new Map();
+function publishContinueContext(){setContinueContext({view:sampleSession?'Temporary Build Schedule sample':{overview:'Course Overview',sequence:'Course Sequence',units:'Unit Planning',lessons:'Lesson Planning',calendar:'Calendar',resources:'Resources',templates:'Templates',archive:'Archive'}[tab],lesson:inspector.kind==='lesson'&&!sampleSession?lessons.find(l=>l.id===selectedLesson)?.title:null,dirty});}
+let dashboardNavigation=0;
+export async function openDashboardDestination(client,user,{courseId,lessonId=null,date=null}){
+ if(saving)return {ok:false,message:'Wait for the current save to finish, then try again.'};
+ if(!uuidRE.test(courseId)||lessonId&&!uuidRE.test(lessonId)||date&&!isCalendarDate(date))return {ok:false,message:'This saved planning link is unavailable.'};
+ const target=courseId===course?.id?{dirty,selectedLesson,inspector}:courseContexts.get(courseId)?.state;
+ const exactDraft=target?.dirty&&lessonId===target.selectedLesson&&target.inspector.kind==='lesson'&&!date;
+ if(target?.dirty&&!exactDraft)return {ok:false,message:'That course has unsaved edits in another view. Continue its workspace and save or explicitly discard the draft before opening this item.'};
+ const request=++dashboardNavigation;
+ if(courseId===course?.id&&exactDraft){
+  const {data,error}=await client.from('courses').select('id,owner_id').eq('id',courseId).eq('owner_id',user.id).single();
+  if(request!==dashboardNavigation||error||!data||data.owner_id!==user.id||owner?.id!==user.id||course?.id!==courseId)return {ok:false,message:'Course access could not be verified.'};
+ }else{
+  const ok=await openPrivateCourse(client,user,courseId,{preserveContext:true});
+  if(!ok||request!==dashboardNavigation)return {ok:false,message:'The saved item could not be opened. Your current work was preserved.'};
+ }
+ if(dirty){
+  if(lessonId===selectedLesson&&inspector.kind==='lesson'&&!date){showWorkspaceDestination('workspace');publishContinueContext();root.querySelector('[data-private-save="lessons"] [name="title"]')?.focus({preventScroll:true});return {ok:true};}
+  return {ok:false,message:'Unsaved edits were preserved. Continue this course before changing its view.'};
+ }
+ if(lessonId&&!lessons.some(l=>l.id===lessonId))return {ok:false,message:'This lesson is no longer in the saved course. Reload its workspace to check.'};
+ if(sampleSession)leaveBuildSample();
+ eventDraft=null;eventPreview=null;discardOutlook(true);buildReturnView=null;
+ tab=date?'calendar':'lessons';inspector.open=!!lessonId||!narrowInspector();inspector.kind=lessonId?'lesson':date?'day':'none';
+ if(lessonId)selectedLesson=lessonId;
+ if(date)calendarState={...calendarState,selected:date,anchor:date};
+ showWorkspaceDestination('workspace');renderWithFocus(lessonId?'[data-private-save="lessons"] [name="title"]':date?'[data-private-calendar-day="'+date+'"]':'.private-primary');publishContinueContext();return {ok:true};
+}
 function captureContext(){
  const state={course,units,lessons,exceptions,selectedUnit,selectedLesson,tab,dirty,editEpoch,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector:{...inspector},buildReturnView,lastStatus};
  const scroll=[...root.querySelectorAll('.private-primary,.private-inspector')].map(node=>[node,node.scrollTop,node.scrollLeft]);
@@ -71,7 +99,7 @@ function restoreContext(context){
  syncWorkspaceShell(course,sampleSession?'calendar':tab,!!sampleSession);syncInspectorModality();
  for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
 }
-function reset(){courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceBusy(){return saving;}
@@ -419,6 +447,6 @@ root.addEventListener("submit",async e=>{
  }catch(err){status("Save failed: "+err.message,"error");}
  finally{saving=false;if(btn.isConnected)btn.disabled=false;}
 });
-window.addEventListener('workspace-destination',()=>{if(course)syncInspectorModality();});
+window.addEventListener('workspace-destination',()=>{if(course){syncInspectorModality();publishContinueContext();}});
 window.addEventListener('resize',()=>{if(course)syncInspectorModality();});
 window.addEventListener("beforeunload",event=>{if(isPrivateWorkspaceDirty()){event.preventDefault();event.returnValue="";}});
