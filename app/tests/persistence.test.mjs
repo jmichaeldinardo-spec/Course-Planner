@@ -94,12 +94,12 @@ test("unsaved drafts block background refreshes and in-flight responses",async()
 });
 test("dirty drafts are preserved by auth refresh and require explicit discard",()=>{
  assert.match(auth,/isPrivateWorkspaceDirty\(\)/);
- assert.match(workspace,/if\(dirty && !discardUnsaved\)/);
- assert.match(workspace,/if\(dirty \|\| editEpoch!==editAtStart\)/);
+ assert.match(workspace,/if\(dirty && !discardUnsaved && !\(switching&&preserveContext\)\)/);
+ assert.match(workspace,/editEpoch!==editAtStart/);
  assert.match(workspace,/data-private-reload/);
  assert.match(workspace,/Save conflict: this record changed/);
  assert.match(workspace,/\.eq\("revision",record\.revision\)/);
- assert.match(auth,/discardUnsaved:true/);
+ assert.match(auth,/preserveContext:true/);
 });
 
 test("restore form calls transactional RPC and does not overwrite current course",()=>{

@@ -1,5 +1,6 @@
+import {setWorkspaceAccount,setWorkspaceCourses,refreshWorkspaceSummaries,showWorkspaceDestination} from "./workspace-shell.js";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
-import { openPrivateCourse, clearPrivateWorkspace, activePrivateCourseId, isPrivateWorkspaceDirty } from "./private-workspace.js";
+import { openPrivateCourse, clearPrivateWorkspace, activePrivateCourseId, isPrivateWorkspaceBusy, isPrivateWorkspaceDirty } from "./private-workspace.js";
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
 import { makeAccountBackup } from "./backup.js";
 const client=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
@@ -13,25 +14,42 @@ async function refresh(){
  try{
  const {data:{session},error}=await client.auth.getSession();
  if(call!==refreshEpoch)return;
- const currentUser=session?.user||null;user=currentUser;
+ const currentUser=session?.user||null;
+ if(user?.id!==currentUser?.id){if(user&&currentUser)clearPrivateWorkspace();setWorkspaceAccount(currentUser?.id||null);}
+ user=currentUser;
  authStatus.textContent=error?"Unable to check sign-in: "+error.message:user?"Signed in: "+user.email:"Not signed in";
- authForm.hidden=!!user;byId("auth-hint").hidden=!!user;signout.hidden=!user;courseForm.hidden=!user;restoreDetails.hidden=!user;backupButton.hidden=!user;list.replaceChildren();
+ authForm.hidden=!!user;byId("auth-hint").hidden=!!user;signout.hidden=!user;courseForm.hidden=!user;restoreDetails.hidden=!user;backupButton.hidden=!user;list.replaceChildren();setWorkspaceCourses([]);
  if(!user){clearPrivateWorkspace();storageStatus.textContent="Sign in to access private saved courses. The interactive demonstration below does not save changes.";return;}
  storageStatus.textContent="Loading private courses…";
  const {data,error:readError}=await client.from("courses").select("id,name,revision,updated_at").order("updated_at",{ascending:false});
  if(call!==refreshEpoch)return;
  if(readError){storageStatus.textContent="Could not load courses: "+readError.message;return;}
- storageStatus.textContent=data.length?data.length+" saved course(s). The demonstration below remains separate and temporary.":"No saved courses yet. Create one to test cloud persistence.";
- const items=data.map(row=>{const li=document.createElement("li"),b=document.createElement("button");b.type="button";b.dataset.privateOpen=row.id;b.textContent="Open "+row.name;li.append(b,document.createTextNode(" · saved "+new Date(row.updated_at).toLocaleString()));return li;});
- list.replaceChildren(...items);
+ storageStatus.textContent=data.length?data.length+" saved course(s).":"No saved courses yet. Create your first course.";
+ setWorkspaceCourses(data);
+ void refreshWorkspaceSummaries(client);
  const prior=activePrivateCourseId();const toOpen=data.find(x=>x.id===prior)?.id||data[0]?.id;
  if(toOpen){if(!isPrivateWorkspaceDirty())await openPrivateCourse(client,currentUser,toOpen);}else clearPrivateWorkspace();
  }catch(err){if(call===refreshEpoch)authStatus.textContent="Sign-in check failed: "+err.message;}
 }
-list.addEventListener("click",event=>{const b=event.target.closest("[data-private-open]");if(b&&user){if(isPrivateWorkspaceDirty()&&!confirm("Discard unsaved changes and switch courses?"))return;openPrivateCourse(client,user,b.dataset.privateOpen,{discardUnsaved:true}).catch(err=>{storageStatus.textContent="Could not open course: "+err.message;});}});
+async function selectCourse(event){const b=event.target.closest("[data-private-open]");if(!b||!user)return;if(b.dataset.privateOpen===activePrivateCourseId()){showWorkspaceDestination("workspace");return;}const selectedUser=user;try{const ok=await openPrivateCourse(client,selectedUser,b.dataset.privateOpen,{preserveContext:true});if(ok&&user?.id===selectedUser.id)showWorkspaceDestination("workspace");}catch(err){storageStatus.textContent="Could not open course: "+err.message;}}
+list.addEventListener("click",selectCourse);
+byId("home-courses").addEventListener("click",selectCourse);
 authForm.addEventListener("submit",async e=>{e.preventDefault();const btn=authForm.querySelector("button");btn.disabled=true;authStatus.textContent="Requesting sign-in email…";const email=byId("auth-email").value.trim();const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error){authStatus.textContent=/rate limit/i.test(error.message)?"Supabase email rate limit reached. Do not retry immediately; wait for the limit to reset.": "Sign-in email failed: "+error.message;}else{authStatus.textContent="Check your email for a sign-in link. Open it once in this same browser after authorizing Vercel preview access."; }btn.disabled=false;});
 signout.addEventListener("click",async()=>{if(isPrivateWorkspaceDirty()&&!confirm("You have unsaved edits. Sign out without saving?"))return;signout.disabled=true;const {error}=await client.auth.signOut();if(error)authStatus.textContent="Sign-out failed: "+error.message;await refresh();signout.disabled=false;});
-courseForm.addEventListener("submit",async e=>{e.preventDefault();if(!user)return;const btn=courseForm.querySelector("button"),name=byId("course-name").value.trim();if(!name)return;btn.disabled=true;storageStatus.textContent="Saving course…";const {data,error}=await client.from("courses").insert({owner_id:user.id,name}).select("id").single();if(error)storageStatus.textContent="Save failed: "+error.message;else{courseForm.reset();await refresh();await openPrivateCourse(client,user,data.id);}btn.disabled=false;});
+courseForm.addEventListener("submit",async e=>{
+ e.preventDefault();if(!user)return;
+ if(isPrivateWorkspaceBusy()){storageStatus.textContent="Wait for the current save to finish before creating a course.";return;}
+ const creatingUser=user,btn=courseForm.querySelector("button"),name=byId("course-name").value.trim();if(!name)return;
+ btn.disabled=true;storageStatus.textContent="Saving course…";
+ try{
+  const {data,error}=await client.from("courses").insert({owner_id:creatingUser.id,name}).select("id").single();
+  if(user?.id!==creatingUser.id)return;
+  if(error){storageStatus.textContent="Save failed: "+error.message;return;}
+  courseForm.reset();await refresh();if(user?.id!==creatingUser.id)return;
+  if(await openPrivateCourse(client,creatingUser,data.id,{preserveContext:true})){byId("workspace-settings").close();showWorkspaceDestination("workspace");}
+ }catch(err){if(user?.id===creatingUser.id)storageStatus.textContent="Save failed: "+err.message;}
+ finally{btn.disabled=false;}
+});
 
 
 backupButton.addEventListener("click",async()=>{
@@ -69,6 +87,7 @@ restoreForm.addEventListener("submit",async e=>{
  e.preventDefault();
  if(!user)return;
  if(isPrivateWorkspaceDirty()){restoreStatus.textContent="Save or discard unsaved edits before restoring.";return;}
+ const restoringUser=user;
  const file=byId("restore-file").files?.[0];
  if(!file)return;
  const button=restoreForm.querySelector('button[type="submit"]');
@@ -87,14 +106,17 @@ restoreForm.addEventListener("submit",async e=>{
      json.calendarExceptions.some(x=>x?.course_id!==json.course.id))
      throw new Error("Export contains invalid unit, lesson or exception relationships.");
   if(!confirm('Create a separate restored copy of "'+String(json.course.name||"Untitled")+'"? Your current courses will not be overwritten.')){restoreStatus.textContent="Restore canceled.";return;}
+  if(user?.id!==restoringUser.id)throw new Error("Account changed; restore canceled.");
   restoreStatus.textContent="Restoring course atomically…";
   const {data,error}=await client.rpc("restore_course_export",{p_export:json});
+  if(user?.id!==restoringUser.id)return;
   if(error)throw new Error(error.message);
   if(!data)throw new Error("No restored course ID was returned.");
   restoreForm.reset();
   restoreStatus.textContent="Restored a separate course successfully. Opening it…";
   await refresh();
-  await openPrivateCourse(client,user,data,{discardUnsaved:false});
+  if(user?.id!==restoringUser.id)return;
+  if(await openPrivateCourse(client,restoringUser,data,{discardUnsaved:false,preserveContext:true})){byId("workspace-settings").close();showWorkspaceDestination("workspace");}
   restoreStatus.textContent="Restore complete. Opened the newly restored course.";
  }catch(err){restoreStatus.textContent="Restore failed: "+err.message+". Existing courses were not changed.";}
  finally{button.disabled=false;}
