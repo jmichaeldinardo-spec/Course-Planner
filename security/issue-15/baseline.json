@@ -1,0 +1,12 @@
+{
+  "protected_state_md5": "500f02effde858e6d3beff80c5aa0a6c",
+  "postgresql_version": "17.11",
+  "environment": "local isolated PG17; B2 simulated; Auth minimal fixture",
+  "east_source_date": "2026-10-28 BEFORE October 30 rollout",
+  "differences": [
+    "Only ensure_rls event trigger; six platform event triggers omitted.",
+    "auth.users contains only UUID primary key, with two fictional identities.",
+    "authenticator memberships granted by f3_setup rather than postgres; options reproduced.",
+    "No Supabase services, SMTP, OAuth or actual authentication sessions."
+  ]
+}

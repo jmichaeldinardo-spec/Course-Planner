@@ -1,0 +1,16 @@
+{
+  "application_head": "78b4c6fdf422d18f5eb51adac671dcc3668090df",
+  "node": {"passed": 107, "failures": 0, "log": "app-node-tests.txt"},
+  "application_browser": {
+    "passed": 769,
+    "errors": 0,
+    "widths": [1440, 390, 320],
+    "authentication": "fictional SDK; no real sessions",
+    "details": "app-browser-results.json"
+  },
+  "public_demo_browser": {"passed": 265, "errors": 0, "screenshots": 42, "source_changed": false},
+  "security_DB": {"main": 265, "supplemental": 47, "total_unique": 312, "final_failures": 0},
+  "hosted_authentication": "BLOCKED / no independent authorized sessions",
+  "actual_managed_B2": "UNVERIFIED",
+  "production_deployment": false
+}

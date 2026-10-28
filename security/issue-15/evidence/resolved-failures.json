@@ -1,0 +1,10 @@
+{
+  "final_runtime_failures": 0,
+  "resolved": [
+    {"stage": "fixture setup", "failure": "postgres schema creator lacked REFERENCES on minimal auth.users parent", "fix": "Fixture-only REFERENCES(id) to postgres; rebuilt disposable schema; fidelity matched all four original fingerprints."},
+    {"stage": "supplemental harness", "failure": "psql boolean t parsed as JSON", "fix": "Explicit to_jsonb(boolean) and guaranteed cleanup for drift probes; supplemental final pass 47/47."},
+    {"stage": "supplemental harness", "failure": "Python default arguments retained A claim during B-as-primary test; RLS correctly denied mismatched owner (42501)", "fix": "Resolve optional actor at call time; both identities complete identical CRUD/negative controls, final 47/47."}
+  ],
+  "setup_limitations_resolved": ["Sandbox DNS required approved download escalation.", "Sandbox shared memory required approved local PostgreSQL initialization/start outside sandbox."],
+  "raw_failed_runs": "Preserved in project-local ignored app/reviews/issue-15-staging/runtime-results/; not passed evidence."
+}

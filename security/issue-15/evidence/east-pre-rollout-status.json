@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-28",
+  "project": "Course Planner East / rlyrfbvxpmmfxdpzkyia",
+  "access": "catalog SELECT only; no teacher rows",
+  "protected_non_target_digest": "db71fe7cbc3786525aa852350189529d",
+  "matches_pre_planning_baseline": true,
+  "post_rollout_acceptance": "PENDING \u2014 date precedes October 30",
+  "east_specific_migration_recommended": false,
+  "existing_target_tuples": 16,
+  "future_target_tuples": 8
+}

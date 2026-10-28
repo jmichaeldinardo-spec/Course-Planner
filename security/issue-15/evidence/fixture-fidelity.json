@@ -1,0 +1,7 @@
+{
+  "checks": {"roles": true, "reachable_roles": true, "table_acls": true, "column_acls": true, "defaults": true, "schema_privileges": true, "effective_table_privileges": true, "all_four_original_definition_fingerprints": true},
+  "fingerprints": {"restore_definition_md5": "6dcb066e19da73baf6a3383ab002bae8", "policies_md5": "64c612b2d575f73ff8fa4bfd6dafbf51", "triggers_md5": "0c83a8fd4b2f285785819b702475e15b", "constraints_md5": "984d9f93e7d560a4836406a6256ed52b"},
+  "expected_fingerprints": {"restore_definition_md5": "6dcb066e19da73baf6a3383ab002bae8", "policies_md5": "64c612b2d575f73ff8fa4bfd6dafbf51", "triggers_md5": "0c83a8fd4b2f285785819b702475e15b", "constraints_md5": "984d9f93e7d560a4836406a6256ed52b"},
+  "scope": "Metadata equivalence, not hosted security acceptance",
+  "fixture_only_differences": ["Only ensure_rls event trigger; six platform event triggers omitted.", "auth.users contains only UUID primary key, with two fictional identities.", "authenticator memberships granted by f3_setup rather than postgres; options reproduced.", "No Supabase services, SMTP, OAuth or actual authentication sessions.", "Minimal auth.users grants REFERENCES(id) to postgres for FK creation; full managed Auth schema omitted."]
+}

@@ -1,0 +1,28 @@
+-- READ ONLY; Course Planner East rlyrfbvxpmmfxdpzkyia only after confirmed rollout.
+-- No tenant rows, RPC or permissions are changed. Operator must verify project separately.
+SELECT now() AT TIME ZONE 'UTC' AS observed_utc, current_database(),current_user,
+ current_setting('server_version'), CASE WHEN current_date < DATE '2026-10-30' THEN 'NOT POST ROLLOUT' ELSE 'DATE PASSED; CONFIRM PROJECT ROLLOUT' END AS rollout_gate;
+-- READ ONLY. Re-run on the explicitly verified Course Planner East project.
+select jsonb_build_object(
+ 'database',jsonb_build_object('name',current_database(),'version',current_setting('server_version'),'session_user',session_user,'current_user',current_user),
+ 'roles',(select jsonb_agg(jsonb_build_object('role',r.rolname,'superuser',r.rolsuper,'inherit',r.rolinherit,'bypass_rls',r.rolbypassrls,'create_role',r.rolcreaterole,'create_db',r.rolcreatedb,'login',r.rolcanlogin)) from pg_roles r where r.rolname in ('authenticated','anon','authenticator','postgres','service_role','supabase_admin')),
+ 'reachable_roles',(select jsonb_agg(jsonb_build_object('role',r.rolname,'member',pg_has_role('authenticated',r.oid,'MEMBER'),'inherit_usage',pg_has_role('authenticated',r.oid,'USAGE'),'can_set',pg_has_role('authenticated',r.oid,'SET'))) from pg_roles r where r.rolname='authenticated' or pg_has_role('authenticated',r.oid,'MEMBER')),
+ 'memberships',(select jsonb_agg(jsonb_build_object('member',mbr.rolname,'role',grp.rolname,'grantor',g.rolname,'admin_option',m.admin_option,'inherit_option',m.inherit_option,'set_option',m.set_option)) from pg_auth_members m join pg_roles mbr on mbr.oid=m.member join pg_roles grp on grp.oid=m.roleid join pg_roles g on g.oid=m.grantor where pg_has_role('authenticated',m.member,'MEMBER') or mbr.rolname='authenticator'),
+ 'table_acls',(select jsonb_agg(jsonb_build_object('table',c.relname,'owner',pg_get_userbyid(c.relowner),'rls',c.relrowsecurity,'force_rls',c.relforcerowsecurity,'grantor',pg_get_userbyid(a.grantor),'grantee',case when a.grantee=0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end,'privilege',a.privilege_type,'grantable',a.is_grantable)) from pg_class c join pg_namespace n on n.oid=c.relnamespace cross join lateral aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a where n.nspname='public' and c.relkind in ('r','p')),
+ 'column_acls',(select jsonb_agg(jsonb_build_object('table',c.relname,'column',at.attname,'grantor',pg_get_userbyid(a.grantor),'grantee',case when a.grantee=0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end,'privilege',a.privilege_type,'grantable',a.is_grantable)) from pg_attribute at join pg_class c on c.oid=at.attrelid join pg_namespace n on n.oid=c.relnamespace cross join lateral aclexplode(at.attacl) a where n.nspname='public'),
+ 'defaults',(select jsonb_agg(jsonb_build_object('creator',pg_get_userbyid(d.defaclrole),'schema',case when d.defaclnamespace=0 then '(global)' else n.nspname end,'object_type',d.defaclobjtype,'grantor',pg_get_userbyid(a.grantor),'grantee',case when a.grantee=0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end,'privilege',a.privilege_type,'grantable',a.is_grantable)) from pg_default_acl d left join pg_namespace n on n.oid=d.defaclnamespace cross join lateral aclexplode(d.defaclacl) a where d.defaclnamespace=0 or n.nspname='public'),
+ 'schema_privileges',(select jsonb_agg(jsonb_build_object('role',r.rolname,'schema',n.nspname,'usage',has_schema_privilege(r.oid,n.oid,'USAGE'),'create',has_schema_privilege(r.oid,n.oid,'CREATE'))) from pg_roles r cross join pg_namespace n where r.rolname in ('anon','authenticated','authenticator') and n.nspname in ('public','auth')),
+ 'effective_table_privileges',(select jsonb_agg(jsonb_build_object('role',r.rolname,'table',c.relname,'select',has_table_privilege(r.oid,c.oid,'SELECT'),'insert',has_table_privilege(r.oid,c.oid,'INSERT'),'update',has_table_privilege(r.oid,c.oid,'UPDATE'),'delete',has_table_privilege(r.oid,c.oid,'DELETE'),'truncate',has_table_privilege(r.oid,c.oid,'TRUNCATE'),'references',has_table_privilege(r.oid,c.oid,'REFERENCES'),'any_column_references',has_any_column_privilege(r.oid,c.oid,'REFERENCES'),'trigger',has_table_privilege(r.oid,c.oid,'TRIGGER'),'maintain',has_table_privilege(r.oid,c.oid,'MAINTAIN'))) from pg_roles r cross join pg_class c join pg_namespace n on n.oid=c.relnamespace where r.rolname in ('anon','authenticated') and n.nspname='public' and c.relkind in ('r','p'))
+) as privilege_inventory;
+
+
+-- READ ONLY. MD5 values are drift detectors, not security signatures.
+select
+ md5(pg_get_functiondef('public.restore_course_export(jsonb)'::regprocedure)) as restore_definition_md5,
+ md5((select jsonb_agg(to_jsonb(x))::text from (select tablename,policyname,roles,cmd,qual,with_check from pg_policies where schemaname='public' order by tablename,policyname)x)) as policies_md5,
+ md5((select jsonb_agg(to_jsonb(x))::text from (select c.relname,t.tgenabled,pg_get_triggerdef(t.oid) as definition from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not t.tgisinternal order by c.relname,t.tgname)x)) as triggers_md5,
+ md5((select jsonb_agg(to_jsonb(x))::text from (select conrelid::regclass::text as relation,conname,pg_get_constraintdef(oid) as definition from pg_constraint where connamespace='public'::regnamespace order by conrelid::regclass::text,conname)x)) as constraints_md5;
+
+
+SELECT p.oid::regprocedure::text AS signature,pg_get_userbyid(p.proowner) AS owner,p.prosecdef,p.proconfig,p.proacl::text,pg_get_functiondef(p.oid) AS definition
+FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' OR p.oid='auth.uid()'::regprocedure;
