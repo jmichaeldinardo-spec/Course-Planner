@@ -145,3 +145,13 @@ Home adds read-only cross-course Needs Attention (real saved statuses, separate
 neutral unscheduled facts) and a Mon–Sun This Week agenda of saved dates/events.
 Continue Planning retains the editor; compact course cards remain secondary.
 See [data/time semantics, draft protection and acceptance evidence](docs/dashboard-v02.md).
+
+## Practical technical regression — DEC-100
+
+From the repository root, run `node app/tests/qa.mjs` for the existing Node suite
+plus synthetic desktop/mobile browser smoke checks. Use `--full` for the complete
+browser matrix. No sign-in or saved-course access is required. See the
+[coverage inventory, one-time tooling setup, evidence and limits](docs/technical-qa-dec100.md).
+Automated PASS/FAIL covers mechanical behavior; UX and product-design judgment
+remain with the owner. Hosted PR #18 stays optional pending isolated test accounts
+and disposable hosted fixtures.
