@@ -47,3 +47,37 @@
 .preview-notice{box-sizing:border-box}
 /* Native page anchoring must not follow an inspector form that is replaced. */
 .pilot-app-page,.teacher-shell,.private-inspector{overflow-anchor:none}
+/* Home is a sibling surface: hide without unmounting the working editor. */
+body[data-destination=home] #private-workspace{display:none}
+body[data-destination=workspace] #private-home{display:none}
+body:has(#private-home:not([hidden])) .workspace-empty{display:none}
+.sidebar-divider{border:0;border-top:1px solid var(--line);margin:10px 4px;width:calc(100% - 8px);flex:none}
+.sidebar-heading{position:relative;justify-content:flex-start;padding-left:46px;min-height:44px;box-sizing:content-box}
+#sidebar-collapse{position:absolute;left:4px;top:0;width:38px;height:44px}
+.sidebar-collapsed .sidebar-heading{padding-left:46px;justify-content:flex-start}
+.sidebar-bottom{padding-top:12px;min-height:150px;display:flex;flex-direction:column}
+.courses-heading{display:flex;align-items:center;justify-content:space-between;gap:4px;padding-left:8px}
+.courses-heading h2{font-size:.73rem;font-weight:600;white-space:nowrap;margin:0;color:var(--muted)}
+.courses-heading [data-create-course]{width:44px;justify-content:center;font-size:1.2rem;padding:6px}
+#saved-courses{list-style:none;margin:0;max-height:24dvh;min-height:44px;overflow:auto;scrollbar-width:thin}
+#saved-courses li{display:flex;align-items:center;border:0;margin:2px 0;padding:0;gap:0}
+#saved-courses button[data-private-open]{display:flex;align-items:center;gap:10px;min-width:0;flex:1;width:auto;text-align:left}
+#saved-courses button[aria-current=true],.home-courses button[aria-current=true]{background:var(--selection);box-shadow:inset 3px 0 var(--accent)}
+#saved-courses .course-icon-edit{width:36px;min-width:36px;flex:none;padding:4px;text-align:center;display:block}
+.course-icon{flex:none;font-size:1.2rem;width:22px;text-align:center}.course-label{overflow-wrap:anywhere;min-width:0}
+.sidebar-collapsed .courses-heading h2,.sidebar-collapsed .teacher-sidebar .course-label{display:none}.sidebar-collapsed .courses-heading{padding:0;justify-content:center}.sidebar-collapsed #saved-courses li{flex-direction:column}.sidebar-collapsed #storage-status{position:absolute;clip-path:inset(50%);height:1px;width:1px;overflow:hidden}
+.sidebar-collapsed #saved-courses .course-icon-edit{min-height:32px}
+.planning-home{padding:clamp(20px,5vw,70px);max-width:1020px;box-sizing:border-box;min-height:calc(100dvh - 59px)}
+.planning-home h1{font-size:clamp(1.8rem,3vw,2.6rem);font-weight:600;letter-spacing:-.04em;margin:12px 0}.planning-home h2{font-size:1rem;margin-top:44px}
+.planning-home p{color:var(--muted);line-height:1.6}.planning-home button,.overview-links button{font:inherit;min-height:44px;padding:10px 16px;border-radius:8px;border:1px solid var(--line);background:var(--raised);color:var(--ink);cursor:pointer}
+.planning-home [data-resume-workspace]{background:var(--accent);color:var(--accent-ink);border:0;margin:18px 8px 8px 0;font-weight:600}
+.home-courses{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:12px}.home-courses button{display:flex;gap:12px;align-items:center;text-align:left;padding:22px 16px;background:var(--surface)}
+.home-note{font-size:.78rem;margin-top:40px}.planning-home :focus-visible,.overview-links :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.overview-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:24px 0}.overview-counts div{padding:18px;background:var(--surface);border-radius:10px}.overview-counts dt{font-size:.8rem;color:var(--muted)}.overview-counts dd{margin:12px 0 0;font-size:1.8rem}.overview-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}.workspace-placeholder{padding:32px;background:var(--surface);border-radius:12px;max-width:650px}
+@media(max-width:700px){.courses-heading h2,.teacher-sidebar .course-label{display:none}.courses-heading{padding:0;justify-content:center}#saved-courses li{flex-direction:column}#saved-courses .course-icon-edit{min-height:32px}#storage-status{font-size:0;padding:0}.mobile-nav-open .courses-heading h2,.mobile-nav-open .course-label{display:block}.mobile-nav-open .courses-heading{justify-content:space-between;padding-left:8px}.mobile-nav-open #saved-courses li{flex-direction:row}.mobile-nav-open #storage-status{position:static;clip-path:none;width:auto;height:auto;font-size:.72rem;padding:8px}.sidebar-heading,.mobile-nav-open .sidebar-heading{padding-left:46px;justify-content:flex-start}.planning-home{padding:24px 16px}.planning-home button{font-size:.85rem}.home-courses{grid-template-columns:1fr}.sidebar-bottom{margin-top:16px}}
+@media(max-width:700px){.mobile-nav-open .teacher-sidebar{padding-inline:4px}}
+@media(max-width:700px){.mobile-nav-open .teacher-sidebar{padding-top:14px;padding-bottom:14px}}
+.teacher-sidebar .private-nav button[aria-current=page]{background:var(--selection);box-shadow:inset 3px 0 var(--accent)}
+.sidebar-collapsed #saved-courses button[data-private-open]{padding:7px 0;justify-content:center}
+@media(max-width:700px){#saved-courses button[data-private-open]{padding:7px 0;justify-content:center}.mobile-nav-open #saved-courses button[data-private-open]{padding:7px 8px;justify-content:flex-start}}
+.teacher-sidebar #saved-courses .course-icon{display:block}

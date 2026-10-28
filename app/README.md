@@ -127,3 +127,14 @@ dismissible detail sheet. Settings offers local dark/light and accent choices;
 course export/reload is under Course actions, with account backup/restore in
 Settings. See [the structure, behavior and updated testing guide](docs/ux-structure-v01.md).
 Scheduling engines, saved-record policies and persistence boundaries are unchanged.
+
+## Home and sidebar navigation — Issue #8
+
+Signed-in startup opens global Home. Resume Workspace reveals the retained editor;
+Course Overview summarizes the selected course's saved records. Resources,
+Templates and Archive open feature-specific Under development views. My Courses
+and `+` use the existing owner-scoped load/create flows. Home, per-course drafts,
+selection, inspector, scroll and icon choices are page-memory only. Save before
+closing/reloading; sign-out clears contexts after the existing dirty warning.
+Tabs/groups/splits and persistent icon metadata remain separately reviewed work.
+See [reconciliation, acceptance evidence and limits](docs/home-navigation.md).

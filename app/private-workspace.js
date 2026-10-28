@@ -1,4 +1,4 @@
-import {syncWorkspaceShell} from './workspace-shell.js';
+import {syncWorkspaceShell,showWorkspaceDestination} from './workspace-shell.js';
 import {createBuildSample,renderBuildSampleNotice} from './build-sample.js';
 import {buildSchedule,planningOutlook} from './build-schedule.js';
 import {renderPlanningOutlook,defaultOutlookPreferences} from './planning-outlook-view.js';
@@ -58,25 +58,42 @@ function formValues(form,fields){const f=new FormData(form),out={};
 }
 function canNavigate(){if(!dirty)return true;const discard=confirm("Your current changes are not saved. Discard them?");if(discard){dirty=false;lastStatus={message:"",kind:"info"};}return discard;}
 function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
-function reset(){syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+let saving=false;
+const courseContexts=new Map();
+function captureContext(){
+ const state={course,units,lessons,exceptions,selectedUnit,selectedLesson,tab,dirty,editEpoch,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector:{...inspector},buildReturnView,lastStatus};
+ const scroll=[...root.querySelectorAll('.private-primary,.private-inspector')].map(node=>[node,node.scrollTop,node.scrollLeft]);
+ return {state,nodes:[...root.childNodes],scroll};
+}
+function restoreContext(context){
+ ({course,units,lessons,exceptions,selectedUnit,selectedLesson,tab,dirty,editEpoch,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector,buildReturnView,lastStatus}=context.state);
+ root.replaceChildren(...context.nodes);root.hidden=false;
+ syncWorkspaceShell(course,sampleSession?'calendar':tab,!!sampleSession);syncInspectorModality();
+ for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
+}
+function reset(){courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
-export function isPrivateWorkspaceDirty(){return dirty;}
-export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}){
+export function isPrivateWorkspaceBusy(){return saving;}
+export function isPrivateWorkspaceDirty(){return dirty||[...courseContexts.values()].some(c=>c.state.dirty);}
+export async function openPrivateCourse(client,user,id,{discardUnsaved=false,preserveContext=false}={}){
+ if(owner&&owner.id!==user.id)reset();
+ if(saving){status("Wait for the current save to finish before changing courses.","pending");return false;}
+ const switching=!!course&&course.id!==id;
  if(!uuidRE.test(id))throw new Error("Invalid course ID.");
  // Never replace a teacher's unsubmitted form. The auth client can refresh in
  // another browser tab at any time, including while this request is in flight.
- if(dirty && !discardUnsaved){
+ if(dirty && !discardUnsaved && !(switching&&preserveContext)){
   status("Unsaved changes preserved. Save or explicitly discard before loading newer records.","pending");
   return false;
  }
  if(dirty && discardUnsaved){dirty=false;editEpoch++;}
- if(sampleSession){leaveBuildSample();render();}
+ if(sampleSession&&!switching){leaveBuildSample();render();}
  const call=++epoch,editAtStart=editEpoch;
- api=client;owner=user;root.hidden=false;
+ root.hidden=false;
  const sameCourse=course?.id===id;
  if(sameCourse)status("Checking saved records…");
- else root.innerHTML='<p role="status">Loading your saved course…</p>';
+ else if(!course)root.innerHTML='<p role="status">Loading your saved course…</p>';
  const [c,u,l,e]=await Promise.all([
   client.from("courses").select("*").eq("id",id).single(),
   client.from("units").select("*").eq("course_id",id).order("position"),
@@ -85,13 +102,19 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false}={}
  ]);
  if(call!==epoch)return false;
  // An edit made after the request started must take priority over its reply.
- if(dirty || editEpoch!==editAtStart){
+ if((dirty&&!(switching&&preserveContext)) || editEpoch!==editAtStart){
   status("Unsaved changes preserved. The saved version can be reloaded after you save or discard your draft.","pending");
   return false;
  }
  const firstError=[c.error,u.error,l.error,e.error].find(Boolean);
- if(firstError){if(sameCourse)status("Reload failed; current editor preserved: "+firstError.message,"error");else{root.replaceChildren();root.textContent="Unable to open private course: "+firstError.message;}return false;}
- if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else root.textContent="Course unavailable for this account.";return false;}
+ if(firstError){if(sameCourse)status("Reload failed; current editor preserved: "+firstError.message,"error");else{status("Unable to open private course: "+firstError.message,"error");}return false;}
+ if(!c.data || c.data.owner_id!==user.id){if(sameCourse)status("Course unavailable for this account.","error");else status("Course unavailable for this account.","error");return false;}
+ // Cache only after the target passes the same authenticated owner-scoped read.
+ api=client;owner=user;
+ if(switching&&preserveContext)courseContexts.set(course.id,captureContext());
+ const previous=preserveContext?courseContexts.get(id):null;
+ if(previous){courseContexts.delete(id);restoreContext(previous);status(dirty?"Unsaved course draft restored. Save to store it.":"Workspace restored. Reload saved data to check for newer records.",dirty?"pending":"info");return true;}
+ if(switching){root.replaceChildren();dirty=false;selectedUnit=null;selectedLesson=null;tab="sequence";sampleSession=null;}
  const nextRecords={course:c.data,units:u.data||[],lessons:l.data||[],exceptions:e.data||[]};
  if(!sameCourse)outlookState=newOutlookState();
  else if((outlookState.result||outlookState.draft)&&schedulingSnapshotToken(nextRecords)!==schedulingSnapshotToken(calendarRecords()))discardOutlook(true,'Saved inputs changed. The old Build forecast was discarded; build again.');
@@ -113,13 +136,14 @@ function render({primary=true,detail=true}={}){
  const display=calendarRecords(),view=sampleSession?'calendar':tab;
  syncWorkspaceShell(course,view,!!sampleSession);
  root.setAttribute?.('aria-label',sampleSession?'Temporary fictional Build Schedule scenario':'Saved curriculum planning');
- const title={sequence:'Course Sequence',units:'Unit Planning',lessons:'Lesson Planning',calendar:'Calendar'}[view];
- const action=view==='calendar'?'<button type="button" data-outlook-open class="workspace-primary-action">Build Schedule</button>':`<button type="button" data-private-add="${view==='units'?'units':'lessons'}" class="workspace-primary-action">Add ${view==='units'?'unit':'lesson'}</button>`;
+ const title={overview:'Course Overview',resources:'Resources',templates:'Templates',archive:'Archive',sequence:'Course Sequence',units:'Unit Planning',lessons:'Lesson Planning',calendar:'Calendar'}[view];
+ const summaryView=['overview','resources','templates','archive'].includes(view);
+ const action=summaryView?'':view==='calendar'?'<button type="button" data-outlook-open class="workspace-primary-action">Build Schedule</button>':`<button type="button" data-private-add="${view==='units'?'units':'lessons'}" class="workspace-primary-action">Add ${view==='units'?'unit':'lesson'}</button>`;
  const header=`<header class="private-header"><div><p class="private-kicker">${sampleSession?'FICTIONAL SUCCESS SCENARIO · IN MEMORY · NOT SAVED':'SAVED WORKSPACE · PRIVATE ACCOUNT'}</p><h2>${escapeHtml(display.course.name)}</h2><h1>${title}</h1><p class="workspace-counts">${display.units.length} unit(s) · ${display.lessons.length} lesson(s) · ${display.exceptions.length} calendar exception(s)</p></div><div class="workspace-toolbar">${action}<button type="button" data-inspector-open ${outlookState.result?'data-outlook-inspect':''} aria-label="${outlookState.result?'Review preview':'Show inspector'}">${outlookState.result?'Review preview':'Inspector'}</button>${sampleSession?'<button type="button" data-build-sample-reset>Reset sample</button><button type="button" data-build-sample-return>Return to your saved course</button>':'<details class="course-actions"><summary>Course actions</summary><button data-private-export type="button">Export course JSON</button><button type="button" data-private-reload>Reload saved data</button></details>'}</div></header>`;
- const content=view==='calendar'?renderCalendar():view==='units'?renderUnitList():renderSequence();
- const aside=`<div class="inspector-heading"><span>${inspector.kind==='lesson'?'Lesson details':inspector.kind==='unit'?'Unit details':inspector.kind==='build'?'Build Schedule':inspector.kind==='event'?'Calendar event':'Details'}</span><button type="button" data-inspector-close aria-label="Close inspector">×</button></div><details class="inspector-size"><summary>Inspector size</summary><label>Width<input type="range" data-inspector-width min="280" max="520" step="20" value="${inspector.width}" aria-label="Inspector width"></label></details><p data-inspector-status data-kind="${lastStatus.kind}" ${['error','pending'].includes(lastStatus.kind)?'':'hidden'}>${escapeHtml(lastStatus.message)}</p><div class="private-inspector-body">${renderInspector()}</div>`;
+ const content=view==='overview'?renderOverview():['resources','templates','archive'].includes(view)?renderPlaceholder(view):view==='calendar'?renderCalendar():view==='units'?renderUnitList():renderSequence();
+ const aside=`<div class="inspector-heading"><span>${inspector.kind==='lesson'?'Lesson details':inspector.kind==='unit'?'Unit details':inspector.kind==='build'?'Build Schedule':inspector.kind==='event'?'Calendar event':'Details'}</span><button type="button" data-private-home>Home</button><button type="button" data-inspector-close aria-label="Close inspector">×</button></div><details class="inspector-size"><summary>Inspector size</summary><label>Width<input type="range" data-inspector-width min="280" max="520" step="20" value="${inspector.width}" aria-label="Inspector width"></label></details><p data-inspector-status data-kind="${lastStatus.kind}" ${['error','pending'].includes(lastStatus.kind)?'':'hidden'}>${escapeHtml(lastStatus.message)}</p><div class="private-inspector-body">${renderInspector()}</div>`;
  const main=root.querySelector?.('.private-primary'),panel=root.querySelector?.('.private-inspector');
- if(!main){root.innerHTML=`<div class="private-frame" style="--inspector-width:${inspector.width}px"><section class="private-primary" aria-label="Primary planning workspace">${header}<p id="private-status" class="sr-only" role="status" aria-live="polite"></p><div class="private-content">${content}</div></section><aside class="private-inspector" aria-label="Contextual inspector" ${inspector.open?'':'hidden'}>${aside}</aside></div>`;}
+ if(!main){root.innerHTML=`<div class="private-frame" style="--inspector-width:${inspector.width}px"><section class="private-primary" tabindex="-1" aria-label="Primary planning workspace">${header}<p id="private-status" class="sr-only" role="status" aria-live="polite"></p><div class="private-content">${content}</div></section><aside class="private-inspector" aria-label="Contextual inspector" ${inspector.open?'':'hidden'}>${aside}</aside></div>`;}
  else{
   const top=main.scrollTop,left=main.scrollLeft;
   if(primary){
@@ -135,7 +159,7 @@ function render({primary=true,detail=true}={}){
 function narrowInspector(){return typeof matchMedia==='function'&&matchMedia('(max-width:1100px)').matches;}
 function syncInspectorModality(){
  const panel=root.querySelector?.('.private-inspector'),main=root.querySelector?.('.private-primary');if(!panel)return;
- const modal=inspector.open&&narrowInspector();main.inert=modal;
+ const modal=inspector.open&&narrowInspector()&&document.body?.dataset.destination!=='home';main.inert=modal;
  const sidebar=$('workspace-navigation')?.closest?.('.teacher-sidebar');if(sidebar)sidebar.inert=modal;
  if(modal){panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');}else{panel.removeAttribute('role');panel.removeAttribute('aria-modal');}
 }
@@ -156,6 +180,13 @@ function patchWorkspaceContent(target,html,calendar){
  for(const selector of ['.calendar-options>details','.outlook-milestones','.build-sample-help'])if(target.querySelector(selector)?.open)next.querySelector(selector)?.setAttribute('open','');
  target.replaceChildren(...next.childNodes);
 }
+function renderOverview(){
+ const active=activeCalendarRecords({course,units,lessons});
+ const ready=active.lessons.filter(l=>l.planning_status==='Ready').length;
+ const scheduled=active.lessons.filter(l=>l.scheduled_dates?.length).length;
+ return `<section class="course-overview"><p>A summary of this course's saved records.</p><dl class="overview-counts"><div><dt>Active units</dt><dd>${active.units.length}</dd></div><div><dt>Active lessons</dt><dd>${active.lessons.length}</dd></div><div><dt>Ready</dt><dd>${ready}</dd></div><div><dt>With saved dates</dt><dd>${scheduled}</dd></div></dl><p>${escapeHtml(course.first_day||'Start date not set')} · ${escapeHtml(course.last_day||'End date not set')}</p><h3>Units</h3>${renderUnitList()}<div class="overview-links"><button type="button" data-private-tab="sequence">Course Sequence</button><button type="button" data-private-tab="lessons">Lesson Planning</button><button type="button" data-private-tab="calendar">Calendar</button></div></section>`;
+}
+function renderPlaceholder(view){const descriptions={resources:'Course resource management is coming later. Existing lesson resource references remain available in Lesson Planning.',templates:'Saved template management is coming later. Your existing lesson content stays available in Lesson Planning.',archive:'Archive browsing and recovery are coming later. Archived records remain included in course exports and account backups.'};return `<section class="workspace-placeholder"><h3>Under development</h3><p>${descriptions[view]}</p></section>`;}
 function renderUnitList(){return `<div class="workspace-unit-list">${units.map(u=>`<button type="button" data-private-unit="${escapeHtml(u.id)}"><span class="unit-marker" style="--unit-marker:var(--unit-${(units.indexOf(u)%5)+1})" aria-hidden="true"></span><span><strong>${escapeHtml(u.title)}</strong><small>${lessons.filter(l=>l.unit_id===u.id).length} lessons · ${escapeHtml(u.essential_questions||'No essential question yet')}</small></span></button>`).join('')||'<p>No units yet. Add your first unit.</p>'}</div>`;}
 function calendarPresentation(){const records=calendarRecords(),outlook=planningOutlook(records,outlookState.result,{focusDate:calendarState.selected,weeks:outlookState.preferences.weeks});return {records,outlook,presentation:{confirmed:outlookState.preferences.confirmed,byDate:outlookState.preferences.tentative?outlook.byDate:{},allowEventPreview:!sampleSession}};}
 function renderInspector(){
@@ -278,6 +309,8 @@ root.addEventListener("input",e=>{
 });
 async function workspaceClick(e){
  const button=e.target.closest("button");if(!button)return;
+ if(button.matches("[data-private-home]")){showWorkspaceDestination("home");$("home-title")?.focus({preventScroll:true});return;}
+ if(saving){status("Wait for the current save to finish before changing views.","pending");return;}
  if(button.matches('[data-inspector-close]')){closeInspector();}
  else if(button.matches('[data-inspector-open]')){if(!canNavigate())return;inspector.open=true;if(outlookState.result)inspector.kind='build';else if(inspector.kind==='none')inspector.kind=tab==='calendar'?'day':'lesson';renderWithFocus('.private-inspector h3,.private-inspector h4',{primary:false});}
  else if(button.matches('[data-private-unit]')){if(!canNavigate())return;selectedUnit=button.dataset.privateUnit;dirty=false;inspector.open=true;inspector.kind='unit';renderWithFocus('[data-private-save="units"] input[name="title"]',{primary:false});}
@@ -307,7 +340,7 @@ async function workspaceClick(e){
   calendarState.anchor=date;calendarState.selected=date;dirty=false;
   renderWithFocus('[data-private-calendar-period="'+step+'"]');
  }
- else if(button.matches("[data-private-tab]")){if(!course||!canNavigate())return;if(sampleSession)leaveBuildSample();tab=button.dataset.privateTab;inspector.open=!narrowInspector();inspector.kind=tab==='calendar'?'day':'none';buildReturnView=null;if(tab!=="calendar"){eventDraft=null;eventPreview=null;discardOutlook(true);}dirty=false;render();}
+ else if(button.matches("[data-private-tab]")){if(!course||!canNavigate())return;showWorkspaceDestination("workspace");if(sampleSession)leaveBuildSample();tab=button.dataset.privateTab;inspector.open=!narrowInspector()&&!['overview','resources','templates','archive'].includes(tab);inspector.kind=tab==='calendar'?'day':'none';buildReturnView=null;if(tab!=="calendar"){eventDraft=null;eventPreview=null;discardOutlook(true);}dirty=false;render();}
  else if(button.matches("[data-private-lesson]")){
   if(sampleSession){if(!sampleSession.records.lessons.some(l=>l.id===button.dataset.privateLesson))return;sampleSession.lessonId=button.dataset.privateLesson;inspector.open=true;inspector.kind='lesson';renderWithFocus('#build-sample-lesson-title',{primary:false});return;}
   if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;dirty=false;inspector.open=true;inspector.kind='lesson';renderWithFocus('[data-private-save="lessons"] input[name="title"]',{primary:false});}
@@ -348,7 +381,8 @@ root.addEventListener("submit",async e=>{
   if(!eventDraft||tab!=="calendar")return;eventDraft=readEventDraft(form);eventPreview=previewSchedulingEvent(calendarRecords(),eventDraft);renderWithFocus('#scheduling-preview-title');return;
  }
  if(!api || !owner || !course)return;
- const btn=form.querySelector('button[type="submit"]');btn.disabled=true;status("Saving to your private database…","pending");
+ const savingOwner=owner.id,savingCourse=course.id;
+ const btn=form.querySelector('button[type="submit"]');saving=true;btn.disabled=true;status("Saving to your private database…","pending");
  try{
   const table=form.dataset.privateSave||form.dataset.privateCreate;
   if(!["units","lessons"].includes(table))throw new Error("Unknown record type");
@@ -370,16 +404,18 @@ root.addEventListener("submit",async e=>{
    result=await api.from(table).insert(payload).select("id").single();
    if(!result.error && result.data){if(table==="units")selectedUnit=result.data.id;else selectedLesson=result.data.id;}
   }
+  if(owner?.id!==savingOwner||course?.id!==savingCourse)return;
   if(result.error)throw new Error(result.error.message);
   if(editEpoch!==submittedEditEpoch){
    status("Submitted changes saved, but newer unsaved edits were kept in this form. Save those separately.","pending");
    return;
   }
-  dirty=false;
+  dirty=false;saving=false;
   const reopened=await openPrivateCourse(api,owner,course.id);
   if(reopened)status("Saved and verified by reloading your private course records.","saved");
  }catch(err){status("Save failed: "+err.message,"error");}
- finally{if(btn.isConnected)btn.disabled=false;}
+ finally{saving=false;if(btn.isConnected)btn.disabled=false;}
 });
+window.addEventListener('workspace-destination',()=>{if(course)syncInspectorModality();});
 window.addEventListener('resize',()=>{if(course)syncInspectorModality();});
-window.addEventListener("beforeunload",event=>{if(dirty){event.preventDefault();event.returnValue="";}});
+window.addEventListener("beforeunload",event=>{if(isPrivateWorkspaceDirty()){event.preventDefault();event.returnValue="";}});
