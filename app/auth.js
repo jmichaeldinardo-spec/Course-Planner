@@ -10,7 +10,7 @@ function showDestination(next){
  if(!user)return;
  destination=next;
  home.hidden=next!=="home";overview.hidden=next!=="overview";workspace.hidden=next!=="workspace"||!activePrivateCourseId();
- for(const [key,node] of [["home",homeNav],["overview",overviewNav],["workspace",resumeNav]]){if(next===key)node.setAttribute("aria-current","page");else node.removeAttribute("aria-current");}
+ for(const [key,node] of [["home",homeNav],["overview",overviewNav],["workspace",resumeNav]]){if(next===key)node.setAttribute?.("aria-current","page");else node.removeAttribute?.("aria-current");}
 }
 function drawHome(){
  const selection=latestCourses.find(c=>c.id===activePrivateCourseId())||latestCourses[0];
