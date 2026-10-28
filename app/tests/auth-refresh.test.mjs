@@ -10,7 +10,7 @@ const session=user=>({data:{session:user?{user}:null},error:null});
 const rows=label=>Array.from({length:3},(_,i)=>({id:label+'-'+i,name:label+' '+i,updated_at:'2026-10-26T12:00:00Z',revision:1}));
 function harness(){
  const elements=new Map(),queries=[],opens=[],timers=[];let listener,dirty=false,sessionRead=()=>Promise.resolve(session(teacher)),clears=0;
- const node=()=>({dataset:{},children:[],textContent:'',hidden:false,addEventListener(){},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;}});
+ const node=()=>({dataset:{},children:[],textContent:'',hidden:false,resets:0,reset(){this.resets++;},addEventListener(){},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;}});
  const document={getElementById(id){if(!elements.has(id))elements.set(id,node());return elements.get(id);},createElement:node,createTextNode:text=>({textContent:text})};
  const client={auth:{getSession:()=>sessionRead(),onAuthStateChange(fn){listener=fn;}},from(table){assert.equal(table,'courses');return {select(){return this;},order(){const request=deferred();queries.push(request);return request.promise;}};}};
  const context=vm.createContext({document,createClient:()=>client,setDashboardAccount(){},beginDashboardRefresh(){},setDashboardError(){},loadDashboard:async()=>{},dashboardNavigationStatus(){},refreshWorkspaceSummaries:async()=>{},setWorkspaceAccount(){},setWorkspaceCourses(rows){const list=document.getElementById('saved-courses');list.replaceChildren(...rows.map(row=>{const li=node(),b=node();b.dataset.privateOpen=row.id;li.append(b);return li;}));},showWorkspaceDestination(){},SUPABASE_URL:'test',SUPABASE_PUBLISHABLE_KEY:'test',openPrivateCourse:async(api,user,id)=>opens.push({user:user.id,id}),clearPrivateWorkspace:()=>clears++,activePrivateCourseId:()=>null,isPrivateWorkspaceBusy:()=>false,isPrivateWorkspaceDirty:()=>dirty,setTimeout:fn=>timers.push(fn)});
@@ -35,4 +35,20 @@ test('stale failures cannot overwrite latest status and auth refresh preserves d
  const h=harness();await tick();h.setDirty(true);h.notify();await tick();h.queries[1].resolve({data:rows('current'),error:null});await tick();h.queries[0].reject(new Error('obsolete network error'));await tick();
  assert.deepEqual(h.ids(),rows('current').map(r=>r.id));assert.equal(h.opens.length,0);assert.match(h.elements.get('storage-status').textContent,/^3 saved course/);assert.match(h.elements.get('auth-status').textContent,/^Signed in/);
  h.notify();await tick();h.queries[2].resolve({data:null,error:{message:'Current list unavailable'}});await tick();assert.deepEqual(h.ids(),[]);assert.match(h.elements.get('storage-status').textContent,/Current list unavailable/);
+});
+
+test('account changes clear account forms and recovery messages, while token refresh preserves drafts',async()=>{
+ const h=harness();await tick();h.queries[0].resolve({data:rows('owner'),error:null});await tick();
+ const forms=['auth-form','course-form','restore-form'].map(id=>h.elements.get(id));
+ const initial=forms.map(form=>form.resets);
+ h.elements.get('restore-status').textContent='Previous account restore result';h.elements.get('backup-status').textContent='Previous account backup result';
+ h.notify();await tick();h.queries[1].resolve({data:rows('owner'),error:null});await tick();
+ assert.deepEqual(forms.map(form=>form.resets),initial);
+ assert.equal(h.elements.get('restore-status').textContent,'Previous account restore result');
+ h.setSessionRead(()=>Promise.resolve(session(null)));h.notify();await tick();
+ assert.deepEqual(forms.map(form=>form.resets),initial.map(n=>n+1));
+ assert.equal(h.elements.get('restore-status').textContent,'');assert.equal(h.elements.get('backup-status').textContent,'');
+ h.setSessionRead(()=>Promise.resolve(session({id:'other-owner',email:'other@example.test'})));h.notify();await tick();
+ assert.deepEqual(forms.map(form=>form.resets),initial.map(n=>n+2));
+ h.queries[2].resolve({data:rows('other'),error:null});await tick();
 });

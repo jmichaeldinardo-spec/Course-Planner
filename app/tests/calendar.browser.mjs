@@ -496,7 +496,8 @@ async function verifyDashboard(page,width,fixture){
  await helpControl.press('Enter');
  check(prefix+' reading help keyboard and safeguards',await help.evaluate(e=>e.open)&&await helpControl.evaluate(e=>e===document.activeElement)&&(await help.innerText()).includes('unscheduled does not mean overdue')&&(await help.innerText()).includes('Categories may overlap')&&(await help.innerText()).includes('Saved civil dates stay as recorded')&&(await help.innerText()).includes('not assumed to be one school-wide event'));
  const helpScroll=await page.evaluate(()=>scrollY);await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await ready();
- check(prefix+' async refresh preserves help expansion focus and scroll',await help.evaluate(e=>e.open)&&await helpControl.evaluate(e=>e===document.activeElement)&&await page.evaluate(top=>Math.abs(scrollY-top)<2,helpScroll));
+ const retainedHelp=await help.evaluate(e=>({expanded:e.open,focused:e.querySelector('summary')===document.activeElement,scroll:scrollY}));
+ check(prefix+' async refresh preserves help expansion focus and scroll '+JSON.stringify({before:helpScroll,...retainedHelp}),retainedHelp.expanded&&retainedHelp.focused&&Math.abs(retainedHelp.scroll-helpScroll)<2);
  await helpControl.press('Enter');
  check(prefix+' routine copy is out of primary panels',!await help.evaluate(e=>e.open)&&!(await page.locator('.attention-panel').innerText()).includes('Categories may overlap')&&!(await page.locator('.week-panel').innerText()).includes('matching names remain separate'));
  check(prefix+' neutral unscheduled explanation remains discoverable',(await help.textContent()).includes('unscheduled does not mean overdue')&&!/Needs Revision|Urgent|Overdue deadline/.test(await page.locator('.attention-panel').innerText()));
@@ -552,14 +553,22 @@ async function verifyDashboard(page,width,fixture){
  await page.evaluate(()=>{window.testDashboardFailEvents=false;});await page.locator('[data-dashboard-retry]').click();await ready();
  check(prefix+' no responsive page overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  check(prefix+' all navigation leaves saved signatures and writes unchanged',await page.evaluate(before=>JSON.stringify(window.testDb)===before&&window.testWrites.length===0,before));
+ await control(page.locator('#course-name'),'fill','Disposable A-only unsaved course title');
+ await control(page.locator('#restore-file'),'setInputFiles',{name:'disposable-a-export.json',mimeType:'application/json',buffer:Buffer.from('{}')});
+ await page.locator('[data-settings-close]').click();await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await ready();
+ check(prefix+' same-account refresh preserves course draft and selected restore file',await page.locator('#course-name').inputValue()==='Disposable A-only unsaved course title'&&await page.locator('#restore-file').evaluate(e=>e.files.length===1));
  await page.evaluate(()=>{window.testHoldDashboard=true;window.testAuthEvent('TOKEN_REFRESHED');});await page.waitForFunction(()=>window.testPendingDashboard.length>0);
  check(prefix+' loading is not reported as zero lessons',(await page.locator('.attention-panel').innerText()).includes('Waiting for saved course records')&&!((await page.locator('.attention-panel').innerText()).includes('0 lessons')));
  await page.evaluate(()=>{window.testSignedOut=true;window.testAuthEvent('SIGNED_OUT');});await page.locator('#auth-form').waitFor({state:'visible'});
  await page.evaluate(()=>{window.testHoldDashboard=false;window.testPendingDashboard.splice(0).forEach(resolve=>resolve());});
  check(prefix+' stale dashboard cannot leak after sign-out',await page.locator('#dashboard-content [data-dashboard-course]').count()===0&&await page.locator('#dashboard-content').innerText()==='');
+ check(prefix+' sign-out clears account form inputs and selected restore file',await page.locator('#course-name').inputValue()===''&&await page.locator('#restore-file').evaluate(e=>e.files.length===0));
  await page.evaluate(()=>{window.testSignedOut=false;window.testOwner='60000000-0000-4000-8000-000000000002';window.testAuthEvent('SIGNED_IN');});
  await page.waitForFunction(()=>document.querySelector('.dashboard-load-status')?.textContent==='1 of 1 courses loaded.');
  check(prefix+' new account dashboard excludes prior owner',!(await page.locator('#dashboard-content').innerText()).includes('Fictional Civic Systems')&&await page.locator('#home-courses button').count()===1);
+ await page.locator('[data-workspace-settings]').click();
+ check(prefix+' next account cannot see previous account form or editor drafts',await page.locator('#course-name').inputValue()===''&&await page.locator('#restore-file').evaluate(e=>e.files.length===0)&&await page.locator('#private-workspace textarea').evaluateAll(nodes=>nodes.every(n=>!n.value.includes('Unsaved dashboard source-course draft')&&!n.value.includes('Unsaved destination-course draft'))));
+ await page.locator('[data-settings-close]').click();
 }
 const server=createServer(async(req,res)=>{
  try{const path=resolve(app,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
