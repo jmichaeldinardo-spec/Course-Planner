@@ -1,3 +1,5 @@
+import {createWorkspaceState} from './workspace-state.js';
+import {createWorkspaceNavigation} from './workspace-navigation.js';
 import {syncWorkspaceShell,showWorkspaceDestination,refreshWorkspaceCourseSummary,setContinueContext} from './workspace-shell.js';
 import {createBuildSample,renderBuildSampleNotice} from './build-sample.js';
 import {buildSchedule,planningOutlook} from './build-schedule.js';
@@ -37,7 +39,13 @@ const lessonFields = [
  ["assessment","Assessment","textarea"],["homework","Homework","textarea"],["notes","Lesson notes","textarea"],
  ["textbook_map_item","Textbook map item","text"]
 ];
-let api=null, owner=null, course=null, units=[],lessons=[],exceptions=[],selectedUnit=null,selectedLesson=null,tab="sequence",dirty=false,epoch=0,editEpoch=0;
+let api=null,owner=null;
+// Read-only aliases of the shared saved snapshot, rebound after reads/acknowledgements.
+let course=null,units=[],lessons=[],exceptions=[];
+// Current presentation; cached course contexts contain only presentation and DOM.
+let selectedUnit=null,selectedLesson=null,tab="sequence";
+// Dirty projects the active course drafts; epochs also protect an initial in-flight load.
+let dirty=false,epoch=0,editEpoch=0;
 let calendarState=null,eventDraft=null,eventPreview=null,sampleSession=null;
 const newOutlookState=()=>({preferences:defaultOutlookPreferences(),draft:null,result:null,notice:''});
 let outlookState=newOutlookState();
@@ -57,16 +65,32 @@ function formValues(form,fields){const f=new FormData(form),out={};
  for(const [key,,type] of fields){const raw=String(f.get(key)??"").trim();out[key]=type==="number"?(raw===""?null:Number(raw)):(raw===""?null:raw);}
  return out;
 }
-function canNavigate(){if(!dirty)return true;const discard=confirm("Your current changes are not saved. Discard them?");if(discard){dirty=false;lastStatus={message:"",kind:"info"};}return discard;}
+const workspaceState=createWorkspaceState();
+const navigation=createWorkspaceNavigation({
+ hasDraft:()=>dirty||workspaceState.hasDraft(course?.id),isSaving:()=>workspaceState.isSaving(),
+ confirmDiscard:target=>confirm(target.kind==='reload'?"Discard your unsaved edits and reload saved course data?":"Your current changes are not saved. Discard them?"),
+ discard:id=>{if(!workspaceState.discard(id))return false;dirty=false;lastStatus={message:"",kind:"info"};return true;}
+});
+function canNavigate(target={}){return navigation.transition({kind:'replace',courseId:course?.id,...target}).ok;}
+function formReference(form){return workspaceState.reference(course.id,form.dataset.privateSave||form.dataset.privateCreate,form.dataset.privateSave?form.dataset.id:null);}
+function rememberForm(form){
+ const values=Object.fromEntries(new FormData(form));workspaceState.edit(formReference(form),values);return values;
+}
+function bindSavedRecords(id){({course,units,lessons,exceptions}=workspaceState.snapshot(id));dirty=workspaceState.hasDraft(id);}
+function projectDrafts(){
+ for(const form of root.querySelectorAll?.('form[data-private-save],form[data-private-create]')||[]){
+  const draft=workspaceState.draft(formReference(form));
+  if(draft)for(const [name,value] of Object.entries(draft.values)){const input=form.elements.namedItem(name);if(input)input.value=value;}
+ }
+}
 function setDirty(next){dirty=next;if(next){editEpoch++;status("Unsaved changes — select Save to store them.","pending");}}
-let saving=false;
 const courseContexts=new Map();
 function publishContinueContext(){setContinueContext({view:sampleSession?'Temporary Build Schedule sample':{overview:'Course Overview',sequence:'Course Sequence',units:'Unit Planning',lessons:'Lesson Planning',calendar:'Calendar',resources:'Resources',templates:'Templates',archive:'Archive'}[tab],lesson:inspector.kind==='lesson'&&!sampleSession?lessons.find(l=>l.id===selectedLesson)?.title:null,dirty});}
 let dashboardNavigation=0;
 export async function openDashboardDestination(client,user,{courseId,lessonId=null,date=null}){
- if(saving)return {ok:false,message:'Wait for the current save to finish, then try again.'};
+ if(workspaceState.isSaving())return {ok:false,message:'Wait for the current save to finish, then try again.'};
  if(!uuidRE.test(courseId)||lessonId&&!uuidRE.test(lessonId)||date&&!isCalendarDate(date))return {ok:false,message:'This saved planning link is unavailable.'};
- const target=courseId===course?.id?{dirty,selectedLesson,inspector}:courseContexts.get(courseId)?.state;
+ const target=courseId===course?.id?{dirty,selectedLesson,inspector}:courseContexts.has(courseId)?{...courseContexts.get(courseId).state,dirty:workspaceState.hasDraft(courseId)}:null;
  const exactDraft=target?.dirty&&lessonId===target.selectedLesson&&target.inspector.kind==='lesson'&&!date;
  if(target?.dirty&&!exactDraft)return {ok:false,message:'That course has unsaved edits in another view. Continue its workspace and save or explicitly discard the draft before opening this item.'};
  const request=++dashboardNavigation;
@@ -90,24 +114,26 @@ export async function openDashboardDestination(client,user,{courseId,lessonId=nu
  showWorkspaceDestination('workspace');renderWithFocus(lessonId?'[data-private-save="lessons"] [name="title"]':date?'[data-private-calendar-day="'+date+'"]':'.private-primary');publishContinueContext();return {ok:true};
 }
 function captureContext(){
- const state={course,units,lessons,exceptions,selectedUnit,selectedLesson,tab,dirty,editEpoch,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector:{...inspector},buildReturnView,lastStatus};
+ const state={courseId:course.id,selectedUnit,selectedLesson,tab,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector:{...inspector},buildReturnView,lastStatus};
  const scroll=[...root.querySelectorAll('.private-primary,.private-inspector')].map(node=>[node,node.scrollTop,node.scrollLeft]);
  return {state,nodes:[...root.childNodes],scroll};
 }
 function restoreContext(context){
- ({course,units,lessons,exceptions,selectedUnit,selectedLesson,tab,dirty,editEpoch,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector,buildReturnView,lastStatus}=context.state);
+ ({selectedUnit,selectedLesson,tab,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector,buildReturnView,lastStatus}=context.state);
+ bindSavedRecords(context.state.courseId);
  root.replaceChildren(...context.nodes);root.hidden=false;
  syncWorkspaceShell(course,sampleSession?'calendar':tab,!!sampleSession);syncInspectorModality();
  for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
 }
-function reset(){dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
-export function isPrivateWorkspaceBusy(){return saving;}
-export function isPrivateWorkspaceDirty(){return dirty||[...courseContexts.values()].some(c=>c.state.dirty);}
+export function isPrivateWorkspaceBusy(){return workspaceState.isSaving();}
+export function isPrivateWorkspaceDirty(){return dirty||workspaceState.hasDraft();}
 export async function openPrivateCourse(client,user,id,{discardUnsaved=false,preserveContext=false}={}){
- if(owner&&owner.id!==user.id)reset();
- if(saving){status("Wait for the current save to finish before changing courses.","pending");return false;}
+ if(workspaceState.account()&&workspaceState.account()!==user.id)reset();
+ workspaceState.setAccount(user.id);
+ if(workspaceState.isSaving()){status("Wait for the current save to finish before changing courses.","pending");return false;}
  const switching=!!course&&course.id!==id;
  if(!uuidRE.test(id))throw new Error("Invalid course ID.");
  // Never replace a teacher's unsubmitted form. The auth client can refresh in
@@ -116,9 +142,9 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false,pre
   status("Unsaved changes preserved. Save or explicitly discard before loading newer records.","pending");
   return false;
  }
- if(dirty && discardUnsaved){dirty=false;editEpoch++;}
+ if(dirty && discardUnsaved){workspaceState.discard(course?.id);dirty=false;editEpoch++;}
  if(sampleSession&&!switching){leaveBuildSample();render();}
- const call=++epoch,editAtStart=editEpoch;
+ const call=++epoch,editAtStart=editEpoch,readToken=workspaceState.beginRead(id);
  root.hidden=false;
  const sameCourse=course?.id===id;
  if(sameCourse)status("Checking saved records…");
@@ -132,6 +158,7 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false,pre
   return false;
  }
  if(readError){const message=(sameCourse?'Reload failed; current editor preserved: ':'Unable to open private course: ')+readError.message;if(!course)root.innerHTML='<p role="alert">'+escapeHtml(message)+'</p>';status(message,'error');const notice=$('storage-status');if(notice)notice.textContent=message;return false;}
+ if(!navigation.transition({kind:'course',courseId:id}).ok)return false;
  // Home and Dashboard keep their own metadata projections of these saved records.
  void refreshWorkspaceCourseSummary(client,id);
  // Cache only after the target passes the same authenticated owner-scoped read.
@@ -143,7 +170,8 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false,pre
  const nextRecords=records;
  if(!sameCourse)outlookState=newOutlookState();
  else if((outlookState.result||outlookState.draft)&&schedulingSnapshotToken(nextRecords)!==schedulingSnapshotToken(calendarRecords()))discardOutlook(true,'Saved inputs changed. The old Build forecast was discarded; build again.');
- ({course,units,lessons,exceptions}=records);
+ if(!workspaceState.publish(readToken,records))return false;
+ bindSavedRecords(id);
  if(!sameCourse){eventDraft=null;eventPreview=null;inspector.open=false;inspector.kind="none";buildReturnView=null;}
  if(sameCourse&&eventDraft&&eventPreview)eventPreview=previewSchedulingEvent({course,units,lessons,exceptions},eventDraft);
  if(!sameCourse||!calendarState){
@@ -180,7 +208,7 @@ function render({primary=true,detail=true}={}){
   panel.hidden=!inspector.open;if(detail){const expanded=['.outlook-more','.event-more'].filter(selector=>panel.querySelector(selector)?.open);panel.innerHTML=aside;for(const selector of expanded)panel.querySelector(selector)?.setAttribute('open','');}
   root.querySelector('.private-frame').style.setProperty('--inspector-width',inspector.width+'px');
  }
- syncInspectorModality();
+ projectDrafts();syncInspectorModality();
 }
 function narrowInspector(){return typeof matchMedia==='function'&&matchMedia('(max-width:1100px)').matches;}
 function syncInspectorModality(){
@@ -235,6 +263,7 @@ function renderSequence(){
  '';
 }
 function renderUnits(current){
+ if(current)current=workspaceState.editing(workspaceState.reference(course.id,'units',current.id));
  const selector=units.map(u=>'<option value="'+u.id+'"'+(u.id===selectedUnit?' selected':'')+'>'+escapeHtml(u.position+' · '+u.title)+'</option>').join("");
  const existing=current?'<label class="private-field">Select unit<select data-private-select-unit>'+selector+'</select></label>'+
  '<form data-private-save="units" data-id="'+current.id+'" class="private-editor"><div class="private-form-grid">'+unitFields.slice(0,5).map(f=>field(f,current[f[0]])).join("")+'</div><details><summary>More unit planning fields</summary><div class="private-form-grid">'+unitFields.slice(5).map(f=>field(f,current[f[0]])).join("")+'</div></details><button type="submit">Save unit changes</button></form>':
@@ -243,6 +272,7 @@ function renderUnits(current){
  '<details class="private-new-form"><summary>Add unit</summary><form data-private-create="units" class="private-form-grid"><label>Unit title<input name="title" required maxlength="180"></label><label>Order<input type="number" name="position" min="1" value="'+(units.length+1)+'" required></label><button type="submit">Create unit</button></form></details>';
 }
 function renderLessons(current){
+ if(current)current=workspaceState.editing(workspaceState.reference(course.id,'lessons',current.id));
  const options=lessons.map(l=>'<option value="'+l.id+'"'+(l.id===selectedLesson?' selected':'')+'>'+escapeHtml(l.position+' · '+l.title)+'</option>').join("");
  const unitOptions=units.map(u=>'<option value="'+u.id+'">'+escapeHtml(u.title)+'</option>').join("");
  const context=current?units.find(x=>x.id===current.unit_id):null;
@@ -321,9 +351,9 @@ root.addEventListener("keydown",e=>{
 let exportRequest=0;
 async function exportCourse(){
  if(sampleSession){status("The sample is not exportable. Return to your saved course for saved-record exports.");return;}
- if(!course || dirty||saving){status("Save or discard changes before exporting.","error");return;}
+ if(!course || dirty||workspaceState.isSaving()){status("Save or discard changes before exporting.","error");return;}
  const client=api,user=owner,id=course.id,request=++exportRequest,readEpoch=epoch,editAtStart=editEpoch,button=root.querySelector('[data-private-export]');
- const isCurrent=()=>request===exportRequest&&epoch===readEpoch&&editEpoch===editAtStart&&owner?.id===user.id&&course?.id===id&&!dirty&&!saving&&!sampleSession;
+ const isCurrent=()=>request===exportRequest&&epoch===readEpoch&&editEpoch===editAtStart&&owner?.id===user.id&&course?.id===id&&!dirty&&!workspaceState.isSaving()&&!sampleSession;
  if(button)button.disabled=true;status('Verifying a complete saved course export…');
  try{
  const {json,text}=await makeCourseExport(client,user,id,{isCurrent});
@@ -338,16 +368,17 @@ async function exportCourse(){
 root.addEventListener("input",e=>{
  const buildForm=e.target.closest('[data-build-schedule-form]');
  if(buildForm&&outlookState.draft){const hadResult=!!outlookState.result;outlookState.draft=readBuildDraft(buildForm);discardOutlook(false,'Preview configuration changed. Build again to see current hypothetical dates.');if(hadResult)renderWithFocus('[data-build-schedule-form] [name="'+e.target.name+'"]');return;}
- if(!sampleSession&&e.target.closest("form[data-private-save],form[data-private-create]"))setDirty(true);
+ const editor=!sampleSession&&e.target.closest("form[data-private-save],form[data-private-create]");
+ if(editor){if(course)rememberForm(editor);setDirty(true);}
  const form=e.target.closest("[data-event-preview-form]");if(form&&eventDraft){eventDraft=readEventDraft(form);eventPreview=null;const stale=root.querySelector('[aria-labelledby="scheduling-preview-title"]');if(stale)stale.hidden=true;}
 });
 async function workspaceClick(e){
  const button=e.target.closest("button");if(!button)return;
  if(button.matches("[data-private-home]")){showWorkspaceDestination("home");$("home-title")?.focus({preventScroll:true});return;}
- if(saving){status("Wait for the current save to finish before changing views.","pending");return;}
+ if(workspaceState.isSaving()){status("Wait for the current save to finish before changing views.","pending");return;}
  if(button.matches('[data-inspector-close]')){closeInspector();}
  else if(button.matches('[data-inspector-open]')){if(!canNavigate())return;inspector.open=true;if(outlookState.result)inspector.kind='build';else if(inspector.kind==='none')inspector.kind=tab==='calendar'?'day':'lesson';renderWithFocus('.private-inspector h3,.private-inspector h4',{primary:false});}
- else if(button.matches('[data-private-unit]')){if(!canNavigate())return;selectedUnit=button.dataset.privateUnit;dirty=false;inspector.open=true;inspector.kind='unit';renderWithFocus('[data-private-save="units"] input[name="title"]',{primary:false});}
+ else if(button.matches('[data-private-unit]')){if(!canNavigate({table:'units',recordId:button.dataset.privateUnit}))return;selectedUnit=button.dataset.privateUnit;dirty=false;inspector.open=true;inspector.kind='unit';renderWithFocus('[data-private-save="units"] input[name="title"]',{primary:false});}
  else if(button.matches('[data-private-add]')){if(sampleSession||!canNavigate())return;dirty=false;inspector.open=true;inspector.kind='add';inspector.table=button.dataset.privateAdd;render({primary:false});const add=root.querySelector('.private-new-form');if(add){add.open=true;add.querySelector('input')?.focus({preventScroll:true});}}
  else if(button.matches('[data-build-sample-open]')){enterBuildSample();}
  else if(button.matches('[data-build-sample-return]')){leaveBuildSample();renderWithFocus('[data-build-sample-open]');}
@@ -374,14 +405,14 @@ async function workspaceClick(e){
   calendarState.anchor=date;calendarState.selected=date;dirty=false;
   renderWithFocus('[data-private-calendar-period="'+step+'"]');
  }
- else if(button.matches("[data-private-tab]")){if(!course||!canNavigate())return;showWorkspaceDestination("workspace");if(sampleSession)leaveBuildSample();tab=button.dataset.privateTab;inspector.open=!narrowInspector()&&!['overview','resources','templates','archive'].includes(tab);inspector.kind=tab==='calendar'?'day':'none';buildReturnView=null;if(tab!=="calendar"){eventDraft=null;eventPreview=null;discardOutlook(true);}dirty=false;render();}
+ else if(button.matches("[data-private-tab]")){if(!course||!canNavigate({view:button.dataset.privateTab}))return;showWorkspaceDestination("workspace");if(sampleSession)leaveBuildSample();tab=button.dataset.privateTab;inspector.open=!narrowInspector()&&!['overview','resources','templates','archive'].includes(tab);inspector.kind=tab==='calendar'?'day':'none';buildReturnView=null;if(tab!=="calendar"){eventDraft=null;eventPreview=null;discardOutlook(true);}dirty=false;render();}
  else if(button.matches("[data-private-lesson]")){
   if(sampleSession){if(!sampleSession.records.lessons.some(l=>l.id===button.dataset.privateLesson))return;sampleSession.lessonId=button.dataset.privateLesson;inspector.open=true;inspector.kind='lesson';renderWithFocus('#build-sample-lesson-title',{primary:false});return;}
-  if(!canNavigate())return;selectedLesson=button.dataset.privateLesson;dirty=false;inspector.open=true;inspector.kind='lesson';renderWithFocus('[data-private-save="lessons"] input[name="title"]',{primary:false});}
+  if(!canNavigate({table:'lessons',recordId:button.dataset.privateLesson}))return;selectedLesson=button.dataset.privateLesson;dirty=false;inspector.open=true;inspector.kind='lesson';renderWithFocus('[data-private-save="lessons"] input[name="title"]',{primary:false});}
  else if(button.matches("[data-private-export]"))exportCourse();
  else if(button.matches("[data-private-reload]")){
   if(sampleSession)leaveBuildSample();
-  if(dirty && !confirm("Discard your unsaved edits and reload saved course data?"))return;
+  if(!canNavigate({kind:'reload'}))return;
   discardOutlook(true,'Saved data reloaded. Build again to inspect a fresh forecast.');
   await openPrivateCourse(api,owner,course.id,{discardUnsaved:true});
  }
@@ -414,42 +445,43 @@ root.addEventListener("submit",async e=>{
  if(form.matches("[data-event-preview-form]")){
   if(!eventDraft||tab!=="calendar")return;eventDraft=readEventDraft(form);eventPreview=previewSchedulingEvent(calendarRecords(),eventDraft);renderWithFocus('#scheduling-preview-title');return;
  }
- if(!api || !owner || !course)return;
- const savingOwner=owner.id,savingCourse=course.id;
- const btn=form.querySelector('button[type="submit"]');saving=true;btn.disabled=true;status("Saving to your private database…","pending");
+ if(!api || !owner || !course || workspaceState.isSaving())return;
+ const savingOwner=owner.id,savingCourse=course.id,client=api;
+ const btn=form.querySelector('button[type="submit"]');btn.disabled=true;status("Saving to your private database…","pending");
  try{
   const table=form.dataset.privateSave||form.dataset.privateCreate;
   if(!["units","lessons"].includes(table))throw new Error("Unknown record type");
-  let result;
-  const submittedEditEpoch=editEpoch;
+  const ref=formReference(form);rememberForm(form);dirty=true;
+  let patch;
   if(form.dataset.privateSave){
-   const record=(table==="units"?units:lessons).find(x=>x.id===form.dataset.id);
-   if(!record)throw new Error("Record was not found.");
-   const fields=table==="units"?unitFields:lessonFields;
-   const patch=formValues(form,fields);
+   patch=formValues(form,table==="units"?unitFields:lessonFields);
    if(!patch.title || !Number.isInteger(patch.position) || patch.position<1 || (patch.target_days!==undefined && patch.target_days!==null && (!Number.isInteger(patch.target_days)||patch.target_days<0)))throw new Error("Check the required title and numeric fields.");
-   result=await api.from(table).update(patch).eq("id",record.id).eq("revision",record.revision).select("id,revision").maybeSingle();
-   if(!result.error && !result.data)throw new Error("Save conflict: this record changed in another session. Your unsaved edits remain here. Copy them before reloading.");
   }else{
-   const name=String(new FormData(form).get("title")||"").trim(), position=Number(new FormData(form).get("position"));
+   const name=String(new FormData(form).get("title")||"").trim(),position=Number(new FormData(form).get("position"));
    if(!name||!Number.isInteger(position)||position<1)throw new Error("A title and positive sequence position are required.");
-   const payload={course_id:course.id,title:name,position};
-   if(table==="lessons"){const unitId=String(new FormData(form).get("unit_id")||"");if(!units.some(u=>u.id===unitId))throw new Error("Choose a valid unit.");payload.unit_id=unitId;}
-   result=await api.from(table).insert(payload).select("id").single();
-   if(!result.error && result.data){if(table==="units")selectedUnit=result.data.id;else selectedLesson=result.data.id;}
+   patch={course_id:course.id,title:name,position};
+   if(table==="lessons"){const unitId=String(new FormData(form).get("unit_id")||"");if(!units.some(u=>u.id===unitId))throw new Error("Choose a valid unit.");patch.unit_id=unitId;}
   }
-  if(owner?.id!==savingOwner||course?.id!==savingCourse)return;
-  if(result.error)throw new Error(result.error.message);
-  if(editEpoch!==submittedEditEpoch){
-   status("Submitted changes saved, but newer unsaved edits were kept in this form. Save those separately.","pending");
-   return;
+  const saved=await workspaceState.save(ref,patch,({patch,record})=>record
+   ?client.from(table).update(patch).eq("id",record.id).eq("revision",record.revision).select("id,revision").maybeSingle()
+   :client.from(table).insert(patch).select("id,revision").single());
+  if(!saved.current||owner?.id!==savingOwner||course?.id!==savingCourse)return;
+  bindSavedRecords(savingCourse);
+  if(!ref.recordId){
+   if(table==="units")selectedUnit=saved.ref.recordId;else selectedLesson=saved.ref.recordId;
+   // A create acknowledged while typing becomes an editor of that SAME record.
+   // The next Save must update it, never insert a second curriculum record.
+   if(saved.newerEdits){inspector.kind=table==='units'?'unit':'lesson';render({primary:false});}
   }
-  dirty=false;saving=false;
+  if(saved.newerEdits){
+   status("Submitted changes saved, but newer unsaved edits were kept in this form. Save those separately.","pending");return;
+  }
   const reopened=await openPrivateCourse(api,owner,course.id);
   if(reopened)status("Saved and verified by reloading your private course records.","saved");
- }catch(err){status("Save failed: "+err.message,"error");}
- finally{saving=false;if(btn.isConnected)btn.disabled=false;}
+ }catch(err){if(owner?.id===savingOwner&&course?.id===savingCourse)status("Save failed: "+err.message,"error");}
+ finally{if(btn.isConnected)btn.disabled=false;}
+
 });
-window.addEventListener('workspace-destination',()=>{if(course){syncInspectorModality();publishContinueContext();}});
+window.addEventListener('workspace-destination',()=>{if(course){navigation.transition({kind:document.body?.dataset.destination==='home'?'home':'resume',courseId:course.id});syncInspectorModality();publishContinueContext();}});
 window.addEventListener('resize',()=>{if(course)syncInspectorModality();});
 window.addEventListener("beforeunload",event=>{if(isPrivateWorkspaceDirty()){event.preventDefault();event.returnValue="";}});
