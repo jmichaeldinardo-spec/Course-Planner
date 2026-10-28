@@ -1,0 +1,7 @@
+{
+  "name": "course-planner-synthetic-test-tools",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "devDependencies": { "playwright": "1.62.1" }
+}

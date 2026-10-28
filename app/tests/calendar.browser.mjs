@@ -34,8 +34,8 @@ const archivedRecords=fixture=>{
  return fixture.lessons.filter(l=>l.archived_at!=null||archivedUnits.has(l.unit_id));
 };
 const stored=process.env.COURSE_PLANNER_CALENDAR_FIXTURE?JSON.parse(await readFile(process.env.COURSE_PLANNER_CALENDAR_FIXTURE,'utf8')):null;
-const checks=[],errors=[];
-const check=(name,condition)=>{assert.ok(condition,name);checks.push({name,passed:true});};
+const checks=[],errors=[],cases=[];let activePage=null,activeCase=null;
+const check=(name,condition)=>{checks.push({name,passed:!!condition});assert.ok(condition,name);};
 // Open actual presentation disclosures/dismiss the narrow detail sheet before
 // exercising existing behaviors. The dedicated UX scenario checks their defaults.
 async function expose(locator){
@@ -633,6 +633,63 @@ async function verifyStageA(page,width,fixture,lesson){
  check(prefix+' delayed account completion cannot expose private editor or draft',await page.locator('#private-workspace').evaluate(e=>e.hidden&&e.childNodes.length===0)&&await page.evaluate(async()=>!(await import('./private-workspace.js')).isPrivateWorkspaceDirty()));
  check(prefix+' next account retains empty authorized course list',await page.locator('#home-courses [data-private-open]').count()===0);
 }
+// DEC-100: gaps beyond existing save/reopen, conflict, navigation and restore tests.
+// Only the synthetic database survives page reload; editor/module state does not.
+async function verifyTeacherRefresh(page,width,fixture){
+ const prefix='teacher-refresh-'+width,lesson=fixture.lessons[0],unit=fixture.units[0];
+ const ids=()=>page.evaluate(()=>Object.fromEntries(Object.entries(window.testDb).map(([table,rows])=>[table,rows.map(r=>r.id).sort()])));
+ const originalIds=await ids();
+ async function open(table){
+  await click(page.locator('#saved-courses [data-private-open="'+fixture.course.id+'"]'));
+  await click(page.locator('#workspace-navigation [data-private-tab="'+(table==='units'?'units':'lessons')+'"]'));
+  await click(page.locator('.private-primary [data-private-'+(table==='units'?'unit':'lesson')+'="'+(table==='units'?unit.id:lesson.id)+'"]'));
+  await page.locator('[data-private-save="'+table+'"]').waitFor({state:'attached'});
+ }
+ async function save(table){
+  await click(page.locator('[data-private-save="'+table+'"] button[type="submit"]'));
+  await page.waitForFunction(()=>document.getElementById('private-status').textContent.includes('Saved and verified'));
+ }
+ async function refresh(){
+  const boot=await page.evaluate(()=>window.qaBootId);
+  const accept=d=>void d.accept();page.on('dialog',accept);
+  try{await page.reload();}finally{page.off('dialog',accept);}
+  await page.locator('#saved-courses [data-private-open]').waitFor();
+  check(prefix+' fresh page discarded old module state',await page.evaluate(boot=>window.qaBootId!==boot,boot));
+ }
+ const unitValue='DEC-100 saved fictional unit question',lessonValue='DEC-100 saved fictional lesson objective';
+ await open('units');await control(page.locator('[name="essential_questions"]'),'fill',unitValue);await save('units');
+ await open('lessons');await control(page.locator('[name="objective"]'),'fill',lessonValue);await save('lessons');
+ const committed=await page.evaluate(()=>JSON.stringify(window.testDb));
+ await refresh();await open('units');
+ check(prefix+' saved unit content rehydrates after full page refresh',await page.locator('[name="essential_questions"]').inputValue()===unitValue);
+ await open('lessons');
+ check(prefix+' saved lesson content rehydrates after full page refresh',await page.locator('[name="objective"]').inputValue()===lessonValue&&await page.evaluate(saved=>JSON.stringify(window.testDb)===saved,committed));
+ check(prefix+' refresh preserves every course unit lesson and exception ID',JSON.stringify(await ids())===JSON.stringify(originalIds));
+ for(const table of ['units','lessons']){
+  await open(table);const field=table==='units'?'essential_questions':'objective',draft='DEC-100 rejected fictional '+table;
+  const before=await page.evaluate(()=>JSON.stringify(window.testDb));
+  await control(page.locator('[name="'+field+'"]'),'fill',draft);await page.evaluate(()=>window.rejectWrites=true);
+  await click(page.locator('[data-private-save="'+table+'"] button[type="submit"]'));
+  await page.waitForFunction(()=>document.getElementById('private-status').textContent.startsWith('Save failed'));
+  check(prefix+' rejected '+table+' save leaves saved and persisted data unchanged',await page.evaluate(before=>JSON.stringify(window.testDb)===before&&sessionStorage.getItem('technical-qa-db')===before,before));
+  if(table==='units'){
+   // Lesson retry was already covered by Stage A; unit retry was not.
+   await page.evaluate(()=>window.rejectWrites=false);await save(table);await refresh();await open(table);
+   check(prefix+' unit failure retry survives full refresh with same record',await page.locator('[name="'+field+'"]').inputValue()===draft&&await page.locator('[data-private-save="units"]').getAttribute('data-id')===unit.id);
+  }else{
+   // Explicit browser reload discards this failed-save draft, not saved content.
+   await refresh();await open(table);
+   check(prefix+' discarded failed lesson save cannot reappear after refresh',await page.locator('[name="'+field+'"]').inputValue()===lessonValue&&await page.evaluate(before=>JSON.stringify(window.testDb)===before,before));
+  }
+ }
+ check(prefix+' ordinary saves and retries create no duplicate IDs',JSON.stringify(await ids())===JSON.stringify(originalIds));
+ await open('units');
+ await page.evaluate(id=>{const u=window.testDb.units.find(u=>u.id===id);u.essential_questions='DEC-100 externally saved unit question';u.revision++;sessionStorage.setItem('technical-qa-db',JSON.stringify(window.testDb));},unit.id);
+ await click(page.locator('[data-private-reload]'));
+ await page.waitForFunction(()=>document.querySelector('[name="essential_questions"]')?.value==='DEC-100 externally saved unit question');
+ check(prefix+' Reload saved data reads newest unit content with stable identity',await page.locator('[data-private-save="units"]').getAttribute('data-id')===unit.id);
+}
+
 async function verifyLossless(page,width,fixture){
  const size=fixture.lessons.length,prefix=`lossless-${size}-${width}`;let downloads=0;page.on('download',()=>downloads++);
  const active=buildCalendarModel(fixture),activeUnits=fixture.units.filter(u=>u.archived_at==null).length;
@@ -697,7 +754,7 @@ async function verifyLossless(page,width,fixture){
 }
 const server=createServer(async(req,res)=>{
  try{const path=resolve(app,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
-  if(!path.startsWith(app+'/')&&path!==app)throw Error('Invalid path');
+  if(!path.startsWith(app+'/')||!/^\/(?:[^/]+\.(?:js|css|html)|assets\/[\w./-]+\.(?:js|css|svg))$/.test(path.slice(app.length)))throw Error('Invalid runtime asset path');
   const content=await readFile(path===app?resolve(app,'index.html'):path);
   res.writeHead(200,{'Content-Type':({'.js':'text/javascript','.css':'text/css','.html':'text/html','.mjs':'text/javascript'})[extname(path)]||'text/html'});res.end(content);
  }catch{res.writeHead(404);res.end('Not found');}
@@ -705,15 +762,18 @@ const server=createServer(async(req,res)=>{
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser;
 try{
- browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
- for(const [fixtureName,fixture] of [['lossless-1001',largeCourseFixture(1001)],['lossless-1201',largeCourseFixture(1201)],['lossless-2000',largeCourseFixture(2000)],['dashboard',dashboardFixture()],['cards',archived],['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
+ browser=await chromium.launch({...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),headless:true});
+ for(const [fixtureName,fixture] of [['teacher-refresh',scheduleFixture()],['lossless-1001',largeCourseFixture(1001)],['lossless-1201',largeCourseFixture(1201)],['lossless-2000',largeCourseFixture(2000)],['dashboard',dashboardFixture()],['cards',archived],['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
   const expected=buildCalendarModel(fixture);
   for(const width of [1440,390]){
-   const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true});context.setDefaultTimeout(20000);
-   console.log('Checking '+fixtureName+' at '+width+'px');
-   await context.addInitScript(({fixture,probeAuth})=>{
+   const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true,serviceWorkers:'block'});context.setDefaultTimeout(20000);
+   console.log('Checking '+fixtureName+' at '+width+'px');activeCase={fixture:fixtureName,width};cases.push(activeCase);
+   await context.route('**/*',route=>new URL(route.request().url()).origin===`http://127.0.0.1:${server.address().port}`?route.continue():route.abort());
+   await context.addInitScript(({fixture,probeAuth,persistDb})=>{
     const snapshot=structuredClone(fixture);let owner=fixture.course.owner_id;window.testOwner=owner;
     const db={courses:fixture.empty?[]:[fixture.course],units:fixture.empty?[]:fixture.units,lessons:fixture.empty?[]:fixture.lessons,calendar_exceptions:fixture.empty?[]:fixture.exceptions};
+    if(persistDb){Object.assign(db,JSON.parse(sessionStorage.getItem('technical-qa-db')||'null')||{});window.qaBootId=crypto.randomUUID();}
+    const persist=()=>{if(persistDb)sessionStorage.setItem('technical-qa-db',JSON.stringify(db));};persist();
     if(fixture.dashboardExtra){const extra=fixture.dashboardExtra;db.courses.push(extra.course);db.units.push(...extra.units);db.lessons.push(...extra.lessons);db.calendar_exceptions.push(...extra.exceptions);db.courses.push({...fixture.course,id:'60000000-0000-4000-8000-000000000001',owner_id:'60000000-0000-4000-8000-000000000002',name:'Foreign private course'});}
     window.testHoldDashboard=false;window.testPendingDashboard=[];
     if(probeAuth)db.courses.push(...[41,42].map(n=>({...fixture.course,id:'10000000-0000-4000-8000-'+String(n).padStart(12,'0'),name:'Fictional additional course '+n})));
@@ -737,13 +797,13 @@ try{
        if(table==='courses'?insert.owner_id!==owner:!db.courses.some(c=>c.id===insert.course_id&&c.owner_id===owner))return {data:null,error:{message:'Access denied'}};
        if(window.testHoldWrites)await new Promise(resolve=>window.testReleaseWrite=resolve);
        if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};
-       const row={...insert,id:crypto.randomUUID(),revision:1,updated_at:new Date().toISOString()};db[table].push(row);window.testWrites.push({table,insert});return {data:[structuredClone(row)],error:null};
+       const row={...insert,id:crypto.randomUUID(),revision:1,updated_at:new Date().toISOString()};db[table].push(row);persist();window.testWrites.push({table,insert});return {data:[structuredClone(row)],error:null};
       }
       let rows=db[table].filter(x=>filters.every(([k,v])=>x[k]===v));
       if(table==='courses')rows=rows.filter(x=>x.owner_id===owner);
       else rows=rows.filter(x=>db.courses.some(c=>c.id===x.course_id&&c.owner_id===owner));
       if(patch&&window.testHoldWrites)await new Promise(resolve=>window.testReleaseWrite=resolve);
-      if(patch){window.testWrites.push({table,patch});if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};rows.forEach(x=>Object.assign(x,patch,{revision:(x.revision||1)+1}));}
+      if(patch){window.testWrites.push({table,patch});if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};rows.forEach(x=>Object.assign(x,patch,{revision:(x.revision||1)+1}));persist();}
       const count=rows.length;if(sortKey)rows.sort((a,b)=>a[sortKey]<b[sortKey]?-1:a[sortKey]>b[sortKey]?1:0);
       if(bounds)rows=rows.slice(bounds[0],bounds[1]+1);else if(!patch)rows=rows.slice(0,1000);
       const response={data:structuredClone(rows.map(x=>columns==='*'?x:Object.fromEntries(columns.split(',').map(k=>[k,x[k]])))),error:null,...(exact?{count}:{})};
@@ -760,11 +820,11 @@ try{
      db.units.push(...json.units.map(u=>({...u,id:mapping.get(u.id),course_id:cid})));
      db.lessons.push(...json.lessons.map(l=>({...l,id:crypto.randomUUID(),course_id:cid,unit_id:mapping.get(l.unit_id)})));
      db.calendar_exceptions.push(...json.calendarExceptions.map(e=>({...e,id:crypto.randomUUID(),course_id:cid})));
-     window.testWrites.push({rpc:name});return {data:cid,error:null};
+     persist();window.testWrites.push({rpc:name});return {data:cid,error:null};
     };
     window.testClient=client;
-   },{fixture,probeAuth:fixtureName==='preview'});
-   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+   },{fixture,probeAuth:fixtureName==='preview',persistDb:fixtureName==='teacher-refresh'});
+   const page=await context.newPage();activePage=page;page.on('pageerror',e=>errors.push(e.message));
    await page.route('https://esm.sh/**',r=>r.fulfill({contentType:'text/javascript',body:'export const createClient=()=>window.testClient;'}));
    if(fixtureName==='dashboard')await page.clock.setFixedTime(new Date('2026-10-27T14:00:00Z'));
    await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
@@ -778,6 +838,7 @@ try{
     check('auth-'+width+' each course appears once',await page.locator('#saved-courses [data-private-open]').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.privateOpen)).size===3));
     check('auth-'+width+' rendering performs no writes',await page.evaluate(()=>window.testWrites.length===0));
    }
+   if(fixtureName==='teacher-refresh'){await verifyTeacherRefresh(page,width,fixture);await context.close();continue;}
    if(fixtureName.startsWith('lossless-')){await verifyLossless(page,width,fixture);await context.close();continue;}
    if(fixtureName==='dashboard'){await verifyDashboard(page,width,fixture);await context.close();continue;}
    if(fixtureName==='cards'){await verifyCourseCards(page,width,fixture);await context.close();continue;}
@@ -883,7 +944,8 @@ try{
   }
  }
  // First saved course, no dates/children: real workspace renders meaningful state.
- const context=await browser.newContext();const page=await context.newPage();
+ const context=await browser.newContext({serviceWorkers:'block'});const page=await context.newPage();activePage=page;activeCase={fixture:'empty-first-course'};cases.push(activeCase);
+ await context.route('**/*',route=>new URL(route.request().url()).origin===`http://127.0.0.1:${server.address().port}`?route.continue():route.abort());
  await page.route('https://esm.sh/**',r=>r.fulfill({contentType:'text/javascript',body:'export const createClient=()=>({auth:{async getSession(){return {data:{session:null}}},onAuthStateChange(){}}});'}));
  await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
  await page.evaluate(async()=>{const {openPrivateCourse}=await import('./private-workspace.js');const c={id:'00000000-0000-4000-8000-000000000001',owner_id:'empty-owner',name:'Empty fictional first course',revision:1};const client={from(table){const b={select(){return b},eq(){return b},order(){return b},range(){return b},single(){return Promise.resolve({data:c})},then(r){return Promise.resolve({data:[],count:0}).then(r)}};return b}};await openPrivateCourse(client,{id:c.owner_id},c.id);});
@@ -896,6 +958,10 @@ try{
  check('empty preview invents no lesson placements',await page.locator('[data-preview-row]').count()===0);
  await page.locator('.private-workspace').screenshot({path:resolve(out,'empty-first-course.png')});await context.close();
  check('no uncaught browser errors',errors.length===0);
- await writeFile(resolve(out,'browser-results.json'),JSON.stringify({checks,errors,storedFixtureTested:!!stored},null,2));
+ await writeFile(resolve(out,'browser-results.json'),JSON.stringify({kind:'synthetic-browser',status:'PASS',cases,checks,errors,storedFixtureTested:!!stored,authenticatedHosted:false},null,2));
  console.log(JSON.stringify({passed:checks.length,errors,storedFixtureTested:!!stored,output:out},null,2));
+}catch(error){
+ try{if(activePage&&!activePage.isClosed())await activePage.screenshot({path:resolve(out,'failure.png')});}catch{}
+ await writeFile(resolve(out,'browser-results.json'),JSON.stringify({kind:'synthetic-browser',status:'FAIL',case:activeCase,cases,checks,errors,failure:error.message,authenticatedHosted:false},null,2));
+ console.error('FAIL synthetic browser: '+error.message);process.exitCode=1;
 }finally{await browser?.close();await new Promise(r=>server.close(r));}
