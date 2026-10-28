@@ -1,0 +1,11 @@
+{
+  "fresh_initialization": true,
+  "same_committed_baseline": true,
+  "main_passed": 265,
+  "additional_passed": 47,
+  "failures": [],
+  "same_sql_hashes": true,
+  "start_stop_workflow_tested": true,
+  "fresh_cluster_stopped": true,
+  "reproduction_timestamp": "2026-10-28T11:30:25.715803+00:00"
+}
