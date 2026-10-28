@@ -1,0 +1,12 @@
+const id=n=>`50000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+export function dashboardFixture(){
+ const owner=id(1),course={id:id(10),owner_id:owner,name:'Fictional Civic Systems',timezone:'America/New_York',first_day:'2026-10-01',last_day:'2026-12-31',teaching_weekdays:[1,2,3,4,5],revision:1};
+ const units=[{id:id(20),course_id:course.id,title:'Civic foundations',position:1,revision:1},{id:id(21),course_id:course.id,title:'Archived civics unit',position:2,archived_at:'2026-10-01',revision:1}];
+ const lesson=(n,title,status,dates,extra={})=>({id:id(100+n),course_id:course.id,unit_id:units[0].id,title,position:n,planning_status:status,scheduled_dates:dates,lesson_type:'Content',duration_days:Math.max(1,dates.length),revision:1,...extra});
+ const lessons=[lesson(1,'Draft a discussion on citizenship','Draft',[]),lesson(2,'Compare civic institutions','In Progress',['2026-10-26','2026-10-27']),lesson(3,'Prepare a reflection','Ready',[]),lesson(4,'Civic reasoning assessment','Ready',['2026-10-27'],{lesson_type:'Assessment'}),lesson(5,'Review constitutional questions','Draft',['2026-10-27']),lesson(6,'Clarify saved date','In Progress',['unclear']),lesson(7,'Archived individual lesson','Draft',[],{archived_at:'2026-10-01'}),lesson(8,'Hidden archived-unit child','Draft',[],{unit_id:units[1].id}),...Array.from({length:8},(_,i)=>lesson(10+i,'Civic workshop '+(i+1),'Ready',['2026-10-27']))];
+ const exceptions=[{id:id(300),course_id:course.id,title:'School closure',date:'2026-10-27',event_type:'Closure',effect:'No Lesson',revision:1},{id:id(301),course_id:course.id,title:'Unclear closure record',date:'2026-10-27',event_type:'Closure',effect:'Continue Lesson',revision:1},{id:id(302),course_id:course.id,title:'Event without valid date',date:'unclear',event_type:'Other',effect:'Move',revision:1}];
+ const other={...course,id:id(11),name:'Fictional Environmental Science — Community Field Investigations',timezone:'Pacific/Auckland'};
+ const secondUnit={...units[0],id:id(22),course_id:other.id,title:'Community fieldwork'};
+ const secondLesson=(n,title,status,dates)=>({...lesson(n,title,status,dates),id:id(200+n),course_id:other.id,unit_id:secondUnit.id});
+ return {course,units,lessons,exceptions,dashboard:true,dashboardExtra:{course:other,units:[secondUnit],lessons:[secondLesson(1,'Plan a field investigation','Draft',[]),secondLesson(2,'Read the stream survey','Ready',['2026-10-27']),secondLesson(3,'Develop evidence notes','In Progress',['2026-10-30'])],exceptions:[{...exceptions[0],id:id(310),course_id:other.id}]}};
+}

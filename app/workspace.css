@@ -92,3 +92,21 @@ body:has(#private-home:not([hidden])) .workspace-empty{display:none}
 .sidebar-collapsed #saved-courses .course-label{display:none}
 @media(max-width:700px){.home-courses{grid-template-columns:minmax(0,300px)}#saved-courses .course-label{display:none}.mobile-nav-open #saved-courses .course-label{display:-webkit-box}.home-courses .home-course-card{padding:18px;min-height:130px}}
 .course-overview .workspace-unit-list{display:grid;gap:10px}.course-overview .workspace-unit-list>button{border:0;background:var(--surface);border-radius:10px;padding:16px}
+/* DEC-094: useful saved cross-course planning, outside the retained editor. */
+.planning-home{max-width:1480px;padding:32px clamp(16px,3vw,44px)}
+.continue-planning{display:flex;align-items:center;gap:12px;margin:20px 0 24px;flex-wrap:wrap}
+.planning-home .continue-planning [data-resume-workspace]{margin:0;padding:12px 16px;background:var(--surface);border:1px solid var(--line);color:var(--ink);display:flex;align-items:center;gap:14px;max-width:100%;text-align:left;box-shadow:none;font-size:.86rem}
+.continue-planning [data-resume-workspace] strong{white-space:nowrap;font-weight:600}.continue-planning [data-resume-workspace] span{font-size:.78rem;font-weight:400;color:var(--muted);white-space:normal;overflow-wrap:anywhere}
+#continue-fallback{font-size:.84rem;margin:0}.dashboard-load-status{font-size:.76rem;margin:12px 0}
+.dashboard-primary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);align-items:start;gap:20px}
+.dashboard-panel{background:var(--surface);border-radius:14px;padding:22px;min-width:0}.dashboard-panel-heading{display:flex;align-items:start;justify-content:space-between;gap:12px}
+.planning-home .dashboard-panel h2{font-size:1.15rem;margin:0}.dashboard-panel h3{font-size:.87rem;margin:0 0 12px}.dashboard-panel h3>span,.dashboard-panel-heading>span{font-size:.76rem;color:var(--muted);font-weight:400}
+.dashboard-panel p{font-size:.77rem;margin:10px 0 16px;line-height:1.6}.dashboard-panel ul,.dashboard-failures{padding:0;list-style:none;margin:0}.dashboard-panel li{padding:10px 0;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.dashboard-panel li>span,.dashboard-panel li>small{display:block;font-size:.73rem;color:var(--muted);line-height:1.5;margin-top:4px}
+.planning-home .dashboard-panel li>button,.planning-home .dashboard-data-notes button,.planning-home .dashboard-course-calendars button,.planning-home .dashboard-failures button{background:transparent;border:0;padding:6px 0;text-align:left;font-size:.85rem;font-weight:550;line-height:1.5;white-space:normal}
+.dashboard-panel li>button:hover,.dashboard-data-notes button:hover{text-decoration:underline}.attention-groups>section{margin-top:22px}.dashboard-panel details>summary,.dashboard-data-notes>summary{font-size:.76rem;cursor:pointer;min-height:36px;line-height:36px}
+.dashboard-empty{color:var(--muted)}.dashboard-days>section{padding-top:16px;border-top:1px solid var(--line);margin-top:12px}.dashboard-week-controls{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.planning-home .dashboard-week-controls button{padding:7px 10px;min-width:36px;font-size:.74rem;background:var(--raised)}
+.dashboard-panel li.exception{border-left:3px solid var(--unit-5);padding-left:12px}.dashboard-panel li.assessment{border-left:3px solid var(--unit-4);padding-left:12px}.dashboard-panel li.uncertain small{color:var(--unit-4)}.dashboard-footnote{font-size:.72rem!important}
+.dashboard-data-notes{padding:12px 0}.dashboard-data-notes li{font-size:.78rem;line-height:1.6}.planning-home .home-courses-title{margin-top:32px;font-size:.95rem}#dashboard-navigation-status:not(:empty){padding:14px;background:var(--raised);border-radius:8px;font-size:.84rem}
+@media(max-width:1050px){.dashboard-primary{grid-template-columns:minmax(0,1fr)}.dashboard-panel{padding:18px}.continue-planning [data-resume-workspace]{flex-direction:column;align-items:flex-start;gap:4px}}
+@media(max-width:700px){.planning-home{padding:24px 16px}.dashboard-panel{padding:16px}.dashboard-panel-heading{flex-wrap:wrap}.dashboard-week-controls{justify-content:flex-start}.planning-home .continue-planning [data-resume-workspace]{font-size:.84rem}.dashboard-week-controls button{min-height:44px}.dashboard-primary{gap:16px}}

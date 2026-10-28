@@ -138,3 +138,10 @@ selection, inspector, scroll and icon choices are page-memory only. Save before
 closing/reloading; sign-out clears contexts after the existing dirty warning.
 Tabs/groups/splits and persistent icon metadata remain separately reviewed work.
 See [reconciliation, acceptance evidence and limits](docs/home-navigation.md).
+
+## Dashboard v0.2 — Issue #10 / DEC-094
+
+Home adds read-only cross-course Needs Attention (real saved statuses, separate
+neutral unscheduled facts) and a Mon–Sun This Week agenda of saved dates/events.
+Continue Planning retains the editor; compact course cards remain secondary.
+See [data/time semantics, draft protection and acceptance evidence](docs/dashboard-v02.md).
