@@ -15,3 +15,5 @@ jobs:
           persist-credentials: false
       - name: Run app tests
         run: cd app && node --test tests/*.test.mjs
+      - name: Run hosted-harness safety checks (no hosted access)
+        run: cd app && node --test tests/hosted/safety.test.mjs tests/hosted/runtime.test.mjs
