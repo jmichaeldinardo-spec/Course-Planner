@@ -93,3 +93,37 @@ alongside incomplete-baseline regressions.
 See [design, migration/RPC recommendations and review gates](docs/scheduling-phase2-design.md)
 and [test evidence/limits](docs/scheduling-phase2a-verification.md). Scheduling
 writes and schema changes require a separate reviewed Phase 2B implementation.
+
+## Build Schedule and three-tier outlook (Phase 2A.5, Issue #5)
+
+Calendar & Exceptions now offers an experimental **Planning outlook**: confirmed
+saved placements, optional near-term tentative overlays and distant milestone
+summaries. **Build Schedule** requires an explicit start and proposes dates only
+for wholly unscheduled lessons; all saved placements stay fixed. Review complete
+BEFORE → PROPOSED arrays and whole-course capacity without writing anything.
+Choose 2/4/6 calendar weeks from the selected date, toggle layers, or use
+**Saved-only view** to discard the forecast. Unknown work stays not assessed or
+cannot estimate. No Apply/Save/Confirm action, new storage or schema is introduced.
+See [how to try it, working policies and verification](docs/build-schedule-outlook.md).
+
+
+For hands-on positive review, choose **Try sample Build Schedule** inside the
+saved calendar. This temporary, immutable 12-lesson fictional scenario uses the
+same engine and interface entirely in memory. Choose **Use selected date
+(2026-09-01)** → **Preview Build Schedule**: expect 4 confirmed fixture lessons,
+8 tentative lessons, and estimated unit ranges through October 23. No sample
+lesson editing, export, persistence or event-authoring path exists. **Return to
+your saved course** restores the original calendar and preferences in one click.
+The existing saved 80-lesson constrained course remains a separate comparison;
+see the guide for exact steps and expected blocked results.
+
+
+## UX Structure v0.1
+
+The private app now uses a persistent sidebar, primary planning pane and contextual
+inspector. Build/event configuration and detailed analyses live in the inspector;
+calendar and canonical planning lists stay in place. Narrow screens use a
+dismissible detail sheet. Settings offers local dark/light and accent choices;
+course export/reload is under Course actions, with account backup/restore in
+Settings. See [the structure, behavior and updated testing guide](docs/ux-structure-v01.md).
+Scheduling engines, saved-record policies and persistence boundaries are unchanged.

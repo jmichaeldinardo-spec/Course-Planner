@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import {defaultOutlookPreferences} from "../planning-outlook-view.js";
 const root=new URL("../",import.meta.url);
 const get=p=>readFileSync(new URL(p,root),"utf8");
 const app=get("index.html"),auth=get("auth.js"),workspace=get("private-workspace.js"),config=get("config.js");
@@ -56,7 +57,7 @@ test("unsaved drafts block background refreshes and in-flight responses",async()
   getElementById(id){return id==="private-workspace"?root:{dataset:{},textContent:""};},
   createElement(){return {dataset:{},append(){},remove(){}};},
  };
- const context={document,console,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
+ const context={document,console,defaultOutlookPreferences,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
  vm.createContext(context);
  const source=workspace.replace(/^import .*$/gm,"").replace(/^export /gm,"");
  vm.runInContext(source,context,{filename:"private-workspace.js"});

@@ -9,8 +9,10 @@
   <link rel="stylesheet" href="assets/styles.css">
   <link rel="stylesheet" href="assets/demo.css">
   <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="workspace.css">
   <script defer src="assets/preview.js"></script>
   <script type="module" src="auth.js"></script>
+  <script type="module" src="workspace-shell.js"></script>
 </head>
 <body class="pilot-app-page">
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -44,9 +46,21 @@
     </div>
   </header>
   <main id="main" class="pilot-main">
-    <section class="pilot-auth" aria-label="Private course account"><div><h2>Private course workspace</h2><p id="auth-status" role="status">Checking sign-in…</p></div><form id="auth-form"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"><button type="submit">Send sign-in email</button></form><p id="auth-hint" class="auth-hint">Protected development preview: finish Vercel access in this browser before using a fresh Supabase email link. Supabase may limit email requests.</p><button id="auth-signout" type="button" hidden>Sign out</button></section>
-    <section class="pilot-storage" aria-label="Private saved course"><h2>Saved courses</h2><p id="storage-status" role="status">Sign in to access private saved courses. The demonstration below is not saved.</p><form id="course-form" hidden><label for="course-name">Course name</label><input id="course-name" maxlength="180" required placeholder="My Government Course"><button type="submit">Create saved course</button></form><ul id="saved-courses"></ul><button id="backup-all" type="button" hidden>Download all courses (ZIP backup)</button><p id="backup-status" role="status" aria-live="polite"></p><details id="restore-details" hidden><summary>Import / Restore Course</summary><p>Creates a separate restored copy. Existing courses are never overwritten.</p><form id="restore-form"><label for="restore-file">Course Planner JSON export</label><input id="restore-file" type="file" accept=".json,application/json" required><button type="submit">Restore as new course</button></form><p id="restore-status" role="status" aria-live="polite"></p></details></section>
-    <section id="private-workspace" class="private-workspace" aria-label="Saved curriculum planning" hidden></section>
+    <div class="teacher-shell">
+      <aside class="teacher-sidebar" aria-label="Course navigation">
+        <div class="sidebar-heading"><span class="sidebar-brand">Course Planner</span><button id="sidebar-collapse" type="button" aria-label="Collapse navigation" title="Collapse navigation" aria-expanded="true"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button></div>
+        <details class="course-switcher" open><summary aria-label="Switch course"><span aria-hidden="true">▤</span><span id="workspace-course-name">Choose a course</span></summary><p id="storage-status" role="status">Sign in to access private saved courses.</p><ul id="saved-courses"></ul></details>
+        <p id="workspace-sample-badge" hidden>Fictional sample · not saved</p>
+        <nav id="workspace-navigation" class="private-nav" aria-label="Planning workspaces"><button type="button" data-private-tab="sequence" aria-label="Course Sequence" title="Course Sequence" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg><span>Course Sequence</span></button><button type="button" data-private-tab="units" aria-label="Unit Planning" title="Unit Planning" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span>Unit Planning</span></button><button type="button" data-private-tab="lessons" aria-label="Lesson Planning" title="Lesson Planning" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg><span>Lesson Planning</span></button><button type="button" data-private-tab="calendar" aria-label="Calendar" title="Calendar" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Calendar</span></button></nav>
+        <div class="sidebar-bottom"><button type="button" data-workspace-settings aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-palette"/></svg><span>Settings</span></button><small>Development preview</small></div>
+      </aside>
+      <div class="teacher-workspace"><div id="account-home"><section class="pilot-auth" aria-label="Private course account"><div><h2>Private course workspace</h2><p id="auth-status" role="status">Checking sign-in…</p></div><form id="auth-form"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"><button type="submit">Send sign-in email</button></form><p id="auth-hint" class="auth-hint">Protected development preview: finish Vercel access in this browser before using a fresh Supabase email link. Supabase may limit email requests.</p><button id="auth-signout" type="button" hidden>Sign out</button></section></div><section id="private-workspace" class="private-workspace" aria-label="Saved curriculum planning" hidden></section><p class="workspace-empty">Choose a course to begin, or open Settings to create one.</p></div>
+    </div>
+    <dialog id="workspace-settings" class="workspace-settings" aria-labelledby="settings-title"><div class="settings-heading"><h2 id="settings-title">Settings</h2><button type="button" data-settings-close aria-label="Close settings">Close</button></div>
+      <section class="appearance-settings"><h3>Appearance</h3><label>Theme<select data-appearance-theme><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Accent<select data-appearance-accent><option value="sage">Sage</option><option value="blue">Blue</option><option value="violet">Violet</option><option value="amber">Amber</option></select></label><p>Applies to this page. Course records stay unchanged.</p></section>
+      <div id="settings-account-slot"></div><section class="pilot-storage" aria-label="Private saved course"><h2>Course files</h2><form id="course-form" hidden><label for="course-name">Course name</label><input id="course-name" maxlength="180" required placeholder="My Government Course"><button type="submit">Create saved course</button></form><button id="backup-all" type="button" hidden>Download all courses (ZIP backup)</button><p id="backup-status" role="status" aria-live="polite"></p><details id="restore-details" hidden><summary>Import / Restore Course</summary><p>Creates a separate restored copy. Existing courses are never overwritten.</p><form id="restore-form"><label for="restore-file">Course Planner JSON export</label><input id="restore-file" type="file" accept=".json,application/json" required><button type="submit">Restore as new course</button></form><p id="restore-status" role="status" aria-live="polite"></p></details></section>
+    </dialog>
+    <details class="legacy-demonstration"><summary>Illustrative demo — not saved</summary>
     <section class="pilot-demo-heading" aria-label="Fictional demonstration"><h2>Illustrative demo — not saved</h2><p>This separate sample is still browser-memory only. Use your signed-in private course workspace above for saved work.</p></section>
     <section class="pilot-overview" aria-labelledby="pilot-title">
       <div>
@@ -85,6 +99,7 @@
       <div><h2 id="pilot-options-title">Sample course options</h2><p>Development-only controls, not persistent teacher settings.</p></div>
       <div id="customization-sample" class="pilot-options-content"></div>
     </section>
+    </details>
   </main>
   <footer class="pilot-footer">Course Planner app development · Fictional data only · <span id="year">2026</span></footer>
 </body>

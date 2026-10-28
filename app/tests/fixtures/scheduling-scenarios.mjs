@@ -31,3 +31,10 @@ export function fullyScheduled80Fixture(){
 }
 function fixtureAddDay(date){const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);}
 function fixtureWeekday(date){return new Date(date+'T12:00:00Z').getUTCDay()||7;}
+
+export function buildOutlookFixture(){
+ const s=scheduleFixture();s.course.last_day='2026-10-30';s.units.push({...s.units[0],id:id(4),title:'Fictional distant unit',position:2});
+ s.lessons[1].scheduled_dates=[];s.lessons[1].duration_days=2;s.lessons[1].flexible_preference_date='2026-09-15';
+ s.lessons[2].unit_id=id(4);s.lessons[2].scheduled_dates=['2026-09-21'];s.lessons[2].protected_pin_date='2026-09-21';s.lessons[3].unit_id=id(4);s.lessons[3].scheduled_dates=[];
+ s.exceptions=[{id:id(30),course_id:s.course.id,date:'2026-09-17',effect:'No Lesson',event_type:'Closure',title:'Fictional closure',revision:1}];return s;
+}
