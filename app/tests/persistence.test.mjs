@@ -23,8 +23,7 @@ test("no privileged Supabase key embedded in browser code",()=>{
 test("real writes target canonical lesson and unit tables with revision check",()=>{
  assert.match(workspace,/\.from\(table\)\.update\(patch\)/);
  assert.match(workspace,/\.eq\("revision",record\.revision\)/);
- assert.match(workspace,/\.from\("lessons"\)/);
- assert.match(workspace,/\.from\("units"\)/);
+ assert.match(workspace,/readCompleteCourse\(client,user,id/);
  assert.match(workspace,/essential_questions/);
 });
 test("failed saves preserve in-form input and report the error",()=>{
@@ -33,8 +32,8 @@ test("failed saves preserve in-form input and report the error",()=>{
  assert.match(workspace,/beforeunload/);
 });
 test("private course exports all related records; demo remains explicitly unsaved",()=>{
- assert.match(workspace,/calendarExceptions:exceptions/);
- assert.match(workspace,/JSON\.stringify\(json,null,2\)/);
+ assert.match(workspace,/makeCourseExport\(client,user,id/);
+ assert.match(get('course-snapshot.js'),/calendarExceptions:exceptions/);
  assert.match(app,/fictional curriculum/);
 });
 
@@ -57,7 +56,7 @@ test("unsaved drafts block background refreshes and in-flight responses",async()
   getElementById(id){return id==="private-workspace"?root:{dataset:{},textContent:""};},
   createElement(){return {dataset:{},append(){},remove(){}};},
  };
- const context={document,console,defaultOutlookPreferences,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
+ const context={document,console,defaultOutlookPreferences,readCompleteCourse:()=>delayed,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
  vm.createContext(context);
  const source=workspace.replace(/^import .*$/gm,"").replace(/^export /gm,"");
  vm.runInContext(source,context,{filename:"private-workspace.js"});

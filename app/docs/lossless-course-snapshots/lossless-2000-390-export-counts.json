@@ -1,0 +1,18 @@
+{
+  "width": 390,
+  "saved": {
+    "units": 200,
+    "lessons": 2000,
+    "calendarExceptions": 601
+  },
+  "exported": {
+    "units": 200,
+    "lessons": 2000,
+    "calendarExceptions": 601
+  },
+  "uniqueLessonIds": 2000,
+  "sourceIdsPreserved": true,
+  "archivedRecordsPreserved": true,
+  "restoreFidelity": true,
+  "zipVerified": true
+}

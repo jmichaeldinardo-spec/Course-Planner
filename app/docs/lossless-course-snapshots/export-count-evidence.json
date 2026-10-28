@@ -1,0 +1,113 @@
+{
+  "fixture": "deterministic synthetic records; mocked owner-scoped SDK; no live Auth/RLS claim",
+  "results": [
+    {
+      "width": 1440,
+      "saved": {
+        "units": 200,
+        "lessons": 1001,
+        "calendarExceptions": 601
+      },
+      "exported": {
+        "units": 200,
+        "lessons": 1001,
+        "calendarExceptions": 601
+      },
+      "uniqueLessonIds": 1001,
+      "sourceIdsPreserved": true,
+      "archivedRecordsPreserved": true,
+      "restoreFidelity": true,
+      "zipVerified": true
+    },
+    {
+      "width": 390,
+      "saved": {
+        "units": 200,
+        "lessons": 1001,
+        "calendarExceptions": 601
+      },
+      "exported": {
+        "units": 200,
+        "lessons": 1001,
+        "calendarExceptions": 601
+      },
+      "uniqueLessonIds": 1001,
+      "sourceIdsPreserved": true,
+      "archivedRecordsPreserved": true,
+      "restoreFidelity": true,
+      "zipVerified": true
+    },
+    {
+      "width": 1440,
+      "saved": {
+        "units": 200,
+        "lessons": 1201,
+        "calendarExceptions": 601
+      },
+      "exported": {
+        "units": 200,
+        "lessons": 1201,
+        "calendarExceptions": 601
+      },
+      "uniqueLessonIds": 1201,
+      "sourceIdsPreserved": true,
+      "archivedRecordsPreserved": true,
+      "restoreFidelity": true,
+      "zipVerified": true
+    },
+    {
+      "width": 390,
+      "saved": {
+        "units": 200,
+        "lessons": 1201,
+        "calendarExceptions": 601
+      },
+      "exported": {
+        "units": 200,
+        "lessons": 1201,
+        "calendarExceptions": 601
+      },
+      "uniqueLessonIds": 1201,
+      "sourceIdsPreserved": true,
+      "archivedRecordsPreserved": true,
+      "restoreFidelity": true,
+      "zipVerified": true
+    },
+    {
+      "width": 1440,
+      "saved": {
+        "units": 200,
+        "lessons": 2000,
+        "calendarExceptions": 601
+      },
+      "exported": {
+        "units": 200,
+        "lessons": 2000,
+        "calendarExceptions": 601
+      },
+      "uniqueLessonIds": 2000,
+      "sourceIdsPreserved": true,
+      "archivedRecordsPreserved": true,
+      "restoreFidelity": true,
+      "zipVerified": true
+    },
+    {
+      "width": 390,
+      "saved": {
+        "units": 200,
+        "lessons": 2000,
+        "calendarExceptions": 601
+      },
+      "exported": {
+        "units": 200,
+        "lessons": 2000,
+        "calendarExceptions": 601
+      },
+      "uniqueLessonIds": 2000,
+      "sourceIdsPreserved": true,
+      "archivedRecordsPreserved": true,
+      "restoreFidelity": true,
+      "zipVerified": true
+    }
+  ]
+}
