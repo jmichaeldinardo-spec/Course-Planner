@@ -45,8 +45,28 @@
   </header>
   <main id="main" class="pilot-main">
     <section class="pilot-auth" aria-label="Private course account"><div><h2>Private course workspace</h2><p id="auth-status" role="status">Checking sign-in…</p></div><form id="auth-form"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"><button type="submit">Send sign-in email</button></form><p id="auth-hint" class="auth-hint">Protected development preview: finish Vercel access in this browser before using a fresh Supabase email link. Supabase may limit email requests.</p><button id="auth-signout" type="button" hidden>Sign out</button></section>
+    <div id="private-shell" class="private-shell" hidden>
+      <aside class="private-shell-sidebar" aria-label="Application navigation">
+        <p class="private-shell-eyebrow">COURSE PLANNER</p>
+        <nav class="private-shell-nav" aria-label="Home and course navigation">
+          <button id="private-home-nav" type="button" aria-current="page">Home</button>
+          <button id="private-overview-nav" type="button">Course Overview</button>
+          <button id="private-resume-nav" type="button">Resume Workspace</button>
+        </nav>
+      </aside>
+      <div class="private-shell-content">
+        <section id="private-home" class="private-home" aria-labelledby="private-home-title">
+          <div class="private-home-heading">
+            <p class="private-kicker">YOUR PLANNING HOME</p>
+            <h1 id="private-home-title">Home</h1>
+            <p>Your saved courses and a direct route back to planning. Dashboard customization is coming later.</p>
+          </div>
     <section class="pilot-storage" aria-label="Private saved course"><h2>Saved courses</h2><p id="storage-status" role="status">Sign in to access private saved courses. The demonstration below is not saved.</p><form id="course-form" hidden><label for="course-name">Course name</label><input id="course-name" maxlength="180" required placeholder="My Government Course"><button type="submit">Create saved course</button></form><ul id="saved-courses"></ul><button id="backup-all" type="button" hidden>Download all courses (ZIP backup)</button><p id="backup-status" role="status" aria-live="polite"></p><details id="restore-details" hidden><summary>Import / Restore Course</summary><p>Creates a separate restored copy. Existing courses are never overwritten.</p><form id="restore-form"><label for="restore-file">Course Planner JSON export</label><input id="restore-file" type="file" accept=".json,application/json" required><button type="submit">Restore as new course</button></form><p id="restore-status" role="status" aria-live="polite"></p></details></section>
+        </section>
+        <section id="private-course-overview" class="private-course-overview" aria-label="Course overview" hidden></section>
     <section id="private-workspace" class="private-workspace" aria-label="Saved curriculum planning" hidden></section>
+      </div>
+    </div>
     <section class="pilot-demo-heading" aria-label="Fictional demonstration"><h2>Illustrative demo — not saved</h2><p>This separate sample is still browser-memory only. Use your signed-in private course workspace above for saved work.</p></section>
     <section class="pilot-overview" aria-labelledby="pilot-title">
       <div>
