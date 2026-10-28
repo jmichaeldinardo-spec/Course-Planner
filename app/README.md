@@ -145,3 +145,11 @@ Home adds read-only cross-course Needs Attention (real saved statuses, separate
 neutral unscheduled facts) and a Mon–Sun This Week agenda of saved dates/events.
 Continue Planning retains the editor; compact course cards remain secondary.
 See [data/time semantics, draft protection and acceptance evidence](docs/dashboard-v02.md).
+
+## Automated hosted acceptance (separate harness)
+
+See [hosted acceptance setup, modes, integrity checks and evidence limits](docs/hosted-acceptance.md).
+The harness lives in `tests/hosted/`, uses dedicated Playwright Chromium contexts,
+and requires one owner-operated authentication/fictional-fixture enrollment.
+It never saves records. Local synthetic checks are reported separately from real
+hosted acceptance; without its dedicated session, hosted acceptance is BLOCKED.

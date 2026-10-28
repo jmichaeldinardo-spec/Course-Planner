@@ -1,2 +1,4 @@
 # Local browser captures and owner-approved fictional verification data.
 reviews/
+# Hosted harness dependencies. Session, fixture, downloads and evidence live in reviews/.
+tests/hosted/node_modules/
