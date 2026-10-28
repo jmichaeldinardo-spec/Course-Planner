@@ -1,4 +1,4 @@
-import {setWorkspaceAccount,setWorkspaceCourses,showWorkspaceDestination} from "./workspace-shell.js";
+import {setWorkspaceAccount,setWorkspaceCourses,refreshWorkspaceSummaries,showWorkspaceDestination} from "./workspace-shell.js";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
 import { openPrivateCourse, clearPrivateWorkspace, activePrivateCourseId, isPrivateWorkspaceBusy, isPrivateWorkspaceDirty } from "./private-workspace.js";
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
@@ -24,8 +24,9 @@ async function refresh(){
  const {data,error:readError}=await client.from("courses").select("id,name,revision,updated_at").order("updated_at",{ascending:false});
  if(call!==refreshEpoch)return;
  if(readError){storageStatus.textContent="Could not load courses: "+readError.message;return;}
- storageStatus.textContent=data.length?data.length+" saved course(s). The demonstration below remains separate and temporary.":"No saved courses yet. Create one to test cloud persistence.";
+ storageStatus.textContent=data.length?data.length+" saved course(s).":"No saved courses yet. Create your first course.";
  setWorkspaceCourses(data);
+ void refreshWorkspaceSummaries(client);
  const prior=activePrivateCourseId();const toOpen=data.find(x=>x.id===prior)?.id||data[0]?.id;
  if(toOpen){if(!isPrivateWorkspaceDirty())await openPrivateCourse(client,currentUser,toOpen);}else clearPrivateWorkspace();
  }catch(err){if(call===refreshEpoch)authStatus.textContent="Sign-in check failed: "+err.message;}

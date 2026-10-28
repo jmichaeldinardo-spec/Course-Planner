@@ -418,6 +418,70 @@ async function verifyHomeNavigation(page,width,fixture){
  await page.evaluate(owner=>{window.testOwner=owner;window.testAuthEvent('SIGNED_IN');},fixture.course.owner_id);await page.waitForFunction(()=>document.querySelectorAll('#home-courses [data-private-open]').length===2);
  check(prefix+' reauthentication returns to Home with reset session icon',await page.locator('#private-home').isVisible()&&await page.locator('#home-courses [data-private-open="'+second+'"] .course-icon').innerText()==='▤');
 }
+async function verifyCourseCards(page,width,fixture){
+ const prefix='cards-'+width;
+ await page.locator('#private-home').waitFor({state:'visible'});
+ const first=page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]');
+ await first.locator('.course-facts').filter({hasText:'4 active units · 60 active lessons'}).waitFor();
+ const before=await page.evaluate(()=>JSON.stringify(window.testDb));
+ check(prefix+' course summary is independently archive-filtered',await first.locator('.course-facts').innerText()==='4 active units · 60 active lessons');
+ check(prefix+' no course-wide last-edited claim from missing or course-only timestamps',await page.locator('#home-courses time').count()===0&&!/last edited/i.test(await page.locator('#home-courses').innerText()));
+ check(prefix+' single card bounded on wide and narrow displays',(await first.boundingBox()).width<=301);
+ await page.screenshot({path:resolve(out,prefix+'-one-course.png')});
+ const second='40000000-0000-4000-8000-000000000001',third='40000000-0000-4000-8000-000000000002';
+ await page.evaluate(({second,third})=>{
+  window.testDb.courses.push({...window.testDb.courses[0],id:second,name:'Fictional Environmental Science: Field Investigations, Community Research and Sustainable Futures',updated_at:'2026-10-27T14:30:00Z'},{...window.testDb.courses[0],id:third,name:'Fictional course — ready to plan',updated_at:null});
+  const unit='40000000-0000-4000-8000-000000000011';
+  window.testDb.units.push({id:unit,course_id:second,title:'Fieldwork',position:1,revision:1});
+  window.testDb.lessons.push(...[1,2,3].map(i=>({id:'40000000-0000-4000-8000-00000000002'+i,course_id:second,unit_id:unit,title:'Field lesson '+i,position:i,revision:1})));
+  window.testAuthEvent('TOKEN_REFRESHED');
+ },{second,third});
+ const secondCard=page.locator('#home-courses [data-private-open="'+second+'"]'),emptyCard=page.locator('#home-courses [data-private-open="'+third+'"]');
+ await secondCard.locator('.course-facts').filter({hasText:'1 active unit · 3 active lessons'}).waitFor();
+ await emptyCard.locator('.course-facts').filter({hasText:'0 active units · 0 active lessons'}).waitFor();
+ check(prefix+' differing course summaries never reuse selected records',await first.locator('.course-facts').innerText()==='4 active units · 60 active lessons'&&await secondCard.locator('.course-facts').innerText()==='1 active unit · 3 active lessons');
+ check(prefix+' long card name remains visible and wraps',await secondCard.locator('.course-label').evaluate(e=>e.scrollHeight<=e.clientHeight+1&&e.scrollWidth<=e.clientWidth+1));
+ check(prefix+' cards adapt without horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ const a=await first.boundingBox(),b=await secondCard.boundingBox();check(prefix+' responsive card grid',width===390?b.y>a.y:Math.abs(a.y-b.y)<2);
+ await page.screenshot({path:resolve(out,prefix+'-multiple-courses.png')});
+ if(width===390){await page.setViewportSize({width:320,height:760});check(prefix+' 320px cards stay readable without overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)&&await secondCard.locator('.course-label').isVisible());await page.screenshot({path:resolve(out,prefix+'-320px-courses.png')});await page.setViewportSize({width,height:1000});}
+ await secondCard.press('Enter');await page.locator('.private-header h2').filter({hasText:'Fictional Environmental Science'}).waitFor();
+ check(prefix+' whole card is keyboard course entry',await secondCard.getAttribute('aria-current')==='true');
+ await page.locator('[data-global-home]').click();await first.click();await page.locator('#workspace-navigation [data-private-tab="overview"]').click();
+ check(prefix+' Overview header uses same active counts',(await page.locator('.workspace-counts').innerText()).startsWith('4 unit(s) · 60 lesson(s)'));
+ check(prefix+' Overview active totals',JSON.stringify(await page.locator('.overview-counts dd').allTextContents())===JSON.stringify(['4','60','0','60']));
+ check(prefix+' Overview units exclude archived unit and its children',await page.locator('.course-overview [data-private-unit]').count()===4&&!((await page.locator('.course-overview').innerText()).includes('Fictional Unit 5')));
+ check(prefix+' Overview per-unit counts exclude archived lessons',(await page.locator('.course-overview .workspace-unit-list small').allTextContents())[0].startsWith('13 lessons'));
+ await page.screenshot({path:resolve(out,prefix+'-archived-overview.png')});
+ await page.locator('[data-private-tab="units"]').click();check(prefix+' other planning view retains its existing unfiltered records',await page.locator('.workspace-unit-list [data-private-unit]').count()===5);
+ await page.locator('[data-private-unit]').first().click();await page.locator('[name="essential_questions"]').fill('Unsaved unit question during course summary refresh');
+ await page.locator('[data-private-home]').click();await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await first.locator('.course-facts').filter({hasText:'4 active units · 60 active lessons'}).waitFor();
+ await secondCard.click();await page.locator('[data-global-home]').click();await first.click();
+ check(prefix+' summary refresh and course switching preserve unsaved unit draft',await page.locator('[name="essential_questions"]').inputValue()==='Unsaved unit question during course summary refresh');
+ check(prefix+' saved records unchanged by summaries/navigation',await page.evaluate(before=>{const current=structuredClone(window.testDb),original=JSON.parse(before);current.courses=current.courses.slice(0,1);current.units=current.units.filter(x=>x.course_id===original.courses[0].id);current.lessons=current.lessons.filter(x=>x.course_id===original.courses[0].id);return JSON.stringify(current)===JSON.stringify(original)&&window.testWrites.length===0;},before));
+ await page.locator('[data-private-home]').click();
+ await page.evaluate(id=>{window.testSummaryFailure=id;window.testAuthEvent('TOKEN_REFRESHED');},third);
+ await emptyCard.locator('.course-facts').filter({hasText:'Summary unavailable'}).waitFor();
+ check(prefix+' read failure never invents zero counts',await emptyCard.locator('.course-facts').innerText()==='Summary unavailable');
+ await emptyCard.click();await page.locator('.private-header h2').filter({hasText:'Fictional course — ready to plan'}).waitFor();
+ check(prefix+' unavailable summary card stays a working course entry',await emptyCard.getAttribute('aria-current')==='true');
+ await page.locator('[data-global-home]').click();await first.click();check(prefix+' failed summary read preserves other course draft',await page.locator('[name="essential_questions"]').inputValue()==='Unsaved unit question during course summary refresh');
+ await page.locator('[data-private-home]').click();await page.evaluate(()=>{window.testSummaryFailure=null;});
+ await page.evaluate(id=>{
+  const unit='40000000-0000-4000-8000-000000000099';window.testDb.units.push({id:unit,course_id:id,title:'Large course unit',position:1,revision:1});
+  window.testDb.lessons.push(...Array.from({length:1201},(_,i)=>({id:'large-course-lesson-'+i,course_id:id,unit_id:unit,title:'Fictional large course lesson '+i,position:i+1,revision:1})));window.testAuthEvent('TOKEN_REFRESHED');
+ },third);
+ await emptyCard.locator('.course-facts').filter({hasText:'1 active unit · 1201 active lessons'}).waitFor();await emptyCard.click();
+ await page.locator('.private-header h2').filter({hasText:'Fictional course — ready to plan'}).waitFor();
+ await page.locator('[data-global-home]').click();await emptyCard.locator('.course-facts').filter({hasText:'1 active unit · 1201 active lessons'}).waitFor();
+ check(prefix+' opening course cannot replace paginated summary with capped editor count',await emptyCard.locator('.course-facts').innerText()==='1 active unit · 1201 active lessons');
+ await first.click();await page.locator('[data-private-home]').click();
+ // Resolve an old account's summary after sign-out; it must not publish.
+ await page.evaluate(()=>{window.testHoldSummaries=true;window.testAuthEvent('TOKEN_REFRESHED');});await page.waitForFunction(()=>window.testPendingSummaries.length>0);
+ await page.evaluate(()=>{window.testSignedOut=true;window.testAuthEvent('SIGNED_OUT');});await page.locator('#auth-form').waitFor({state:'visible'});
+ await page.evaluate(()=>{window.testHoldSummaries=false;window.testPendingSummaries.splice(0).forEach(resolve=>resolve());});
+ check(prefix+' late summaries never restore signed-out course data',await page.locator('#home-courses [data-private-open]').count()===0&&await page.locator('#saved-courses button').count()===0);
+}
 const server=createServer(async(req,res)=>{
  try{const path=resolve(app,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
   if(!path.startsWith(app+'/')&&path!==app)throw Error('Invalid path');
@@ -429,7 +493,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser;
 try{
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
- for(const [fixtureName,fixture] of [['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
+ for(const [fixtureName,fixture] of [['cards',archived],['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
   const expected=buildCalendarModel(fixture);
   for(const width of [1440,390]){
    const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true});context.setDefaultTimeout(20000);
@@ -438,7 +502,7 @@ try{
     const snapshot=structuredClone(fixture);let owner=fixture.course.owner_id;window.testOwner=owner;
     const db={courses:fixture.empty?[]:[fixture.course],units:fixture.empty?[]:fixture.units,lessons:fixture.empty?[]:fixture.lessons,calendar_exceptions:fixture.empty?[]:fixture.exceptions};
     if(probeAuth)db.courses.push(...[41,42].map(n=>({...fixture.course,id:'10000000-0000-4000-8000-'+String(n).padStart(12,'0'),name:'Fictional additional course '+n})));
-    window.testHoldCourseLists=probeAuth;window.testPendingCourseLists=[];
+    window.testHoldSummaries=false;window.testPendingSummaries=[];window.testHoldCourseLists=probeAuth;window.testPendingCourseLists=[];
     window.testDb=db;window.testReads=[];window.testWrites=[];window.testSnapshot=snapshot;window.rejectWrites=false;
     const client={auth:{async getSession(){return {data:{session:window.testSignedOut?null:{user:{id:window.testOwner,email:'fictional@example.test'}}}};},async getUser(){return {data:{user:{id:owner}}};},onAuthStateChange(fn){window.testAuthEvent=fn;},async signOut(){return {};}}};
     client.from=table=>{
@@ -448,15 +512,17 @@ try{
      async function run(){
       owner=window.testOwner;
       if(!patch)window.testReads.push({table,filters});
+      if(window.testSummaryFailure&&filters.some(([key,value])=>key==='course_id'&&value===window.testSummaryFailure)&&columns.includes('archived_at')&&columns!=='*')return {data:null,error:{message:'Synthetic summary read failure'}};
       if(insert){if(table!=='courses'||insert.owner_id!==owner)return {data:null,error:{message:'Access denied'}};const row={...insert,id:crypto.randomUUID(),revision:1,updated_at:new Date().toISOString()};db[table].push(row);window.testWrites.push({table,insert});return {data:[structuredClone(row)],error:null};}
       let rows=db[table].filter(x=>filters.every(([k,v])=>x[k]===v));
       if(table==='courses')rows=rows.filter(x=>x.owner_id===owner);
       else rows=rows.filter(x=>db.courses.some(c=>c.id===x.course_id&&c.owner_id===owner));
       if(patch&&window.testHoldWrites)await new Promise(resolve=>window.testReleaseWrite=resolve);
       if(patch){window.testWrites.push({table,patch});if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};rows.forEach(x=>Object.assign(x,patch,{revision:(x.revision||1)+1}));}
-      if(bounds)rows=rows.slice(bounds[0],bounds[1]+1);
+      if(bounds)rows=rows.slice(bounds[0],bounds[1]+1);else if(!patch)rows=rows.slice(0,1000);
       const response={data:structuredClone(rows.map(x=>columns==='*'?x:Object.fromEntries(columns.split(',').map(k=>[k,x[k]])))),error:null};
       if(window.testHoldCourseLists&&table==='courses'&&columns==='id,name,revision,updated_at')return new Promise(resolve=>window.testPendingCourseLists.push(()=>resolve(response)));
+      if(window.testHoldSummaries&&['units','lessons'].includes(table)&&columns.includes('archived_at')&&columns!=='*')return new Promise(resolve=>window.testPendingSummaries.push(()=>resolve(response)));
       return response;
      }return chain;
     };
@@ -484,6 +550,7 @@ try{
     check('auth-'+width+' each course appears once',await page.locator('#saved-courses [data-private-open]').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.privateOpen)).size===3));
     check('auth-'+width+' rendering performs no writes',await page.evaluate(()=>window.testWrites.length===0));
    }
+   if(fixtureName==='cards'){await verifyCourseCards(page,width,fixture);await context.close();continue;}
    if(['home','empty'].includes(fixtureName)){await verifyHomeNavigation(page,width,fixture);await context.close();continue;}
    await page.locator('[data-private-tab="calendar"]').click();
    await page.locator('.saved-month').waitFor();

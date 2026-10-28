@@ -1,8 +1,10 @@
+import {readCourseSummary,summaryLabel} from './course-summary.js';
 // All presentation/context in this milestone is page-memory only, never Auth settings.
 const byId=id=>document.getElementById(id);
 const icons=['▤','◈','◉','✦','⌘','▥'];
 let accountId=null,courses=[],currentCourse=null,currentTab=null,sample=false,destination='home';
-const courseIcons=new Map();
+const courseIcons=new Map(),courseSummaries=new Map(),summaryVersions=new Map();
+let summaryGeneration=0;
 let workspaceFocus=null;
 function navigationState(){const b=byId('sidebar-collapse');if(!b)return;const expanded=matchMedia('(max-width:700px)').matches?document.body.classList.contains('mobile-nav-open'):!document.body.classList.contains('sidebar-collapsed');b.setAttribute('aria-expanded',String(expanded));b.setAttribute('aria-label',expanded?'Collapse navigation':'Expand navigation');}
 function syncDestination(){
@@ -15,13 +17,31 @@ function syncDestination(){
  window.dispatchEvent(new Event('workspace-destination'));
 }
 export function showWorkspaceDestination(next){if(next==='home'&&destination==='workspace')workspaceFocus=document.activeElement;destination=next==='workspace'&&currentCourse?'workspace':'home';syncDestination();if(destination==='workspace'&&workspaceFocus?.isConnected)workspaceFocus.focus({preventScroll:true});}
-export function setWorkspaceAccount(id){if(accountId!==id){courseIcons.clear();workspaceFocus=null;courses=[];currentCourse=null;currentTab=null;destination='home';}accountId=id;renderCourseEntries();syncDestination();}
-export function setWorkspaceCourses(rows){courses=rows;renderCourseEntries();}
-function courseButton(row){const b=document.createElement('button');b.type='button';b.dataset.privateOpen=row.id;b.setAttribute('aria-label','Open '+row.name);b.title=row.name;const icon=document.createElement('span');icon.className='course-icon';icon.setAttribute('aria-hidden','true');icon.textContent=courseIcons.get(row.id)||icons[0];const name=document.createElement('span');name.className='course-label';name.textContent=row.name;b.append(icon,name);if(currentCourse?.id===row.id)b.setAttribute('aria-current','true');return b;}
+export function setWorkspaceAccount(id){if(accountId!==id){courseIcons.clear();courseSummaries.clear();summaryVersions.clear();summaryGeneration++;workspaceFocus=null;courses=[];currentCourse=null;currentTab=null;destination='home';}accountId=id;renderCourseEntries();syncDestination();}
+export function setWorkspaceCourses(rows){courses=rows;courseSummaries.clear();summaryVersions.clear();summaryGeneration++;renderCourseEntries();}
+function updateSummaryLabel(id){
+ const node=byId('home-courses')?.querySelector('[data-course-summary="'+id+'"]');if(!node)return;
+ const summary=courseSummaries.get(id);node.textContent=summary?.error?'Summary unavailable':summary?summaryLabel(summary):'Loading course summary…';
+}
+async function loadSummary(client,row,generation){
+ const version=(summaryVersions.get(row.id)||0)+1;summaryVersions.set(row.id,version);let summary;
+ try{summary=await readCourseSummary(client,row);}catch{summary={error:true};}
+ if(generation!==summaryGeneration||version!==summaryVersions.get(row.id))return;
+ courseSummaries.set(row.id,summary);updateSummaryLabel(row.id);
+}
+export async function refreshWorkspaceCourseSummary(client,id){
+ const row=courses.find(row=>row.id===id);if(accountId&&row)await loadSummary(client,row,summaryGeneration);
+}
+export async function refreshWorkspaceSummaries(client){
+ const generation=summaryGeneration,queue=[...courses];
+ async function worker(){while(queue.length&&generation===summaryGeneration)await loadSummary(client,queue.shift(),generation);}
+ await Promise.all(Array.from({length:Math.min(3,queue.length)},worker));
+}
+function courseButton(row,summary=false){const b=document.createElement('button');b.type='button';b.dataset.privateOpen=row.id;b.setAttribute('aria-label','Open '+row.name);b.title=row.name;const icon=document.createElement('span');icon.className='course-icon';icon.setAttribute('aria-hidden','true');icon.textContent=courseIcons.get(row.id)||icons[0];const name=document.createElement('span');name.className='course-label';name.textContent=row.name;b.append(icon,name);if(summary){b.className='home-course-card';const facts=document.createElement('span');facts.className='course-facts';facts.dataset.courseSummary=row.id;const value=courseSummaries.get(row.id);facts.textContent=value?.error?'Summary unavailable':value?summaryLabel(value):'Loading course summary…';b.append(facts);}if(currentCourse?.id===row.id)b.setAttribute('aria-current','true');return b;}
 function renderCourseEntries(){
  const list=byId('saved-courses'),home=byId('home-courses');if(!list||!home)return;
  list.replaceChildren(...courses.map(row=>{const li=document.createElement('li');li.append(courseButton(row));const edit=document.createElement('button');edit.type='button';edit.dataset.courseIcon=row.id;edit.textContent='⋯';edit.className='course-icon-edit';edit.setAttribute('aria-label','Change icon for '+row.name);edit.title='Change course icon (this session)';li.append(edit);return li;}));
- home.replaceChildren(...courses.map(courseButton));if(!courses.length)home.textContent=accountId?'No courses yet. Create your first course to begin.':'';
+ home.replaceChildren(...courses.map(row=>courseButton(row,true)));if(!courses.length)home.textContent=accountId?'No courses yet. Create your first course to begin.':'';
 }
 export function syncWorkspaceShell(course,tab,isSample=false){
  if(typeof document==='undefined')return;currentCourse=course;currentTab=tab;sample=isSample;

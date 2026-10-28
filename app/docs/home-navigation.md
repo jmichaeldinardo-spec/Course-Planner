@@ -54,7 +54,7 @@ untouched; local private evidence remains under Git-ignored `app/reviews/`.
 Results and known limits will be recorded here after automated and browser runs.
 Owner visual acceptance is required before any merge or production promotion.
 
-## Implemented behavior and personally run checks
+## Original milestone behavior and checks (98ca9b6)
 
 Home hides, rather than replaces, the existing central DOM; Resume restores focus
 without scrolling. A mobile inspector Home button provides an exit while retaining
@@ -72,7 +72,7 @@ and sign-out clear all contexts and icon choices. Course creation uses the same
 owner-scoped insert and retains the old course's draft/context; account checks
 also prevent stale create/restore callbacks from opening another user's course.
 
-Personally executed on the final application source:
+Personally executed on the original milestone source at `98ca9b6`:
 - `cd app && node --test tests/*.test.mjs`: **92 pass**, no failures/skips.
 - `node app/tests/calendar.browser.mjs` with bundled Playwright and local Chrome:
   **654 pass**, zero uncaught browser errors, desktop 1440×1000 and mobile 390×1000.
@@ -118,3 +118,93 @@ No durable workspace recovery, tabs/groups/splits, widget engine, persistent ico
 choice or collaboration grants are claimed. Course Overview is wired through the
 same planning destination renderer so it can participate in M2's future selected-
 tab and Open in New Tab behavior; those controls do not yet exist in the baseline.
+
+
+## DEC-093 refinement — compact summary cards (October 27, 2026)
+
+Implements the complete owner review at
+https://github.com/jmichaeldinardo-spec/Course-Planner/pull/9#issuecomment-6459579355.
+Read the current CPD through the verified collaboration connection; DEC-093 selects
+Option B, compact summary cards. This design decision does not approve the final UX
+or merging. PR #9 stays on its existing PR #6-derived branch and remains draft.
+
+### Implementation and data semantics
+
+Home uses bounded cards (up to 300px) in a responsive grid, with a soft neutral
+surface, retained course icon/name and active selection. The whole card is a native
+button, keyboard/touch accessible. Cards show independent active unit/lesson facts.
+`course-summary.js` reads only IDs, relationships and archive flags through the
+existing signed-in RLS client, scoped by the authorized course ID, ordered by ID,
+and paginated in batches of 500. No lesson text or second curriculum dataset is
+retained. Three workers bound concurrent course loading. Per-course request versions
+and the existing account/list generation prevent stale replies from publishing.
+Labels update in place without moving focus or rebuilding working editors.
+
+Counts follow `activeCalendarRecords`: an archived lesson is omitted, and all
+children of an archived unit are omitted even if not individually archived. Every
+course loads its own metadata. Incomplete/failed relationships or reads show Summary
+unavailable, never fake zero counts; the card remains a working entry. Reads beyond
+the existing 200-unit/2,000-lesson pilot bounds also show unavailable. A separately
+paginated refresh after course load/save keeps editor reads capped by the API from
+replacing an accurate Home count (tested with 1,201 lessons).
+
+**Last edited is intentionally omitted.** The available `courses.updated_at` records
+a course-row timestamp, not a guaranteed latest edit across units, lessons and
+calendar records. Missing child timestamps cannot be invented, and this refinement
+adds no timestamp contract, trigger or schema field. This follows the review's
+explicit instruction to omit unreliable last-edited information. Saved term dates
+in Overview are formatted as readable civil dates and are not edit timestamps.
+
+Overview now passes its active records into the unit-list renderer. Its header,
+summary totals, visible units and per-unit lesson counts agree. The default renderer
+inputs for Unit Planning and all other editors remain their original records, with
+unit color associations intact. Low-risk polish limits sidebar titles to two visual
+lines (full accessible name/title retained), shortens repeated status copy and gives
+Overview unit rows soft panels. No new navigation, widget or tab architecture.
+
+### Final personally executed verification
+
+- **97 Node tests pass**, no failures/skips (`node --test tests/*.test.mjs`). Five
+  additional summary tests cover archive relationships, immutability, empty/singular
+  counts, timestamp omission, course-only metadata reads, 1,201-lesson pagination,
+  failures, pilot size limits and cross-course/missing-parent rejection.
+- **695 full app browser checks pass**, zero uncaught errors, with synthetic data
+  and the real application modules at 1440px/390px plus focused 320px/760px checks.
+  All original navigation, dirty editor, save/reload/conflict, import/export, ZIP,
+  calendar, Build Schedule and mobile inspector regressions remain in the suite.
+- New browser coverage: bounded one-course layout; differing per-course counts;
+  zero records; long names; missing/course-only timestamps; whole-card Enter entry;
+  active course; archived unit with children and independently archived lesson;
+  Overview header/list/count consistency; other editor views unchanged; unit drafts
+  across Home/summary refresh/course switches; failed summary reads/clickable cards;
+  1,201-lesson counts despite capped editor reads; stale reply after sign-out; and
+  unchanged saved-record serialization/zero writes during navigation.
+- **265 marketing/demo checks pass**, 42 screenshots, zero browser errors. Marketing
+  source and original assertions remain unchanged.
+- `git diff --check` passes. No build/lint/typecheck script exists.
+
+Logs/full evidence: ignored `app/reviews/dec-093/`. All curated screenshots contain
+only deterministic synthetic records. Before images preserve the original `98ca9b6`
+render; the single-course before/after screenshots use the same original fixture.
+
+[Before desktop Home](home-navigation/before-dec-093/desktop-home.png) ·
+[After desktop Home](home-navigation/desktop-home.png) ·
+[Before mobile Home](home-navigation/before-dec-093/mobile-home.png) ·
+[After mobile Home](home-navigation/mobile-home.png) ·
+[Before Overview](home-navigation/before-dec-093/desktop-overview.png) ·
+[After Overview](home-navigation/desktop-overview.png)
+
+![Multiple courses — desktop](home-navigation/desktop-cards.png)
+![Multiple courses — mobile](home-navigation/mobile-cards.png)
+![Archive-consistent Overview](home-navigation/archived-overview.png)
+
+### Acceptance gates retained
+
+Owner visual acceptance and hosted signed-in acceptance remain open. Synthetic
+account tests do not establish real cross-account write/insert RLS correctness.
+No Supabase email was requested; the owner is rate-limited. No live saved rows were
+used or changed. No schemas, permissions, Auth settings, SDK version, marketing
+source, Google Sheet, Apps Script, scheduling engine or backup implementation changed.
+Page-memory icons/workspaces and M2 tab/split deferrals remain unchanged. No merge
+or production promotion is authorized or performed. Rollback of this refinement is
+the original PR #9 head `98ca9b6`; no data rollback is necessary.
