@@ -496,7 +496,11 @@ async function verifyDashboard(page,width,fixture){
  check(prefix+' reading help is a native closed disclosure',await help.evaluate(e=>e.tagName==='DETAILS'&&!e.open)&&await helpControl.innerText()==='About these summaries');
  await helpControl.press('Enter');
  check(prefix+' reading help keyboard and safeguards',await help.evaluate(e=>e.open)&&await helpControl.evaluate(e=>e===document.activeElement)&&(await help.innerText()).includes('unscheduled does not mean overdue')&&(await help.innerText()).includes('Categories may overlap')&&(await help.innerText()).includes('Saved civil dates stay as recorded')&&(await help.innerText()).includes('not assumed to be one school-wide event'));
- const helpScroll=await page.evaluate(()=>scrollY);await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await ready();
+ const helpScroll=await page.evaluate(()=>scrollY);
+ await page.evaluate(()=>{window.dashboardListReads=window.testReads.filter(r=>r.table==='courses'&&r.columns==='id,name,revision,updated_at').length;window.testAuthEvent('TOKEN_REFRESHED');});
+ // Auth deliberately schedules refresh on a timer; the previous ready label is
+ // not evidence that this new refresh has started or completed.
+ await page.waitForFunction(()=>window.testReads.filter(r=>r.table==='courses'&&r.columns==='id,name,revision,updated_at').length>window.dashboardListReads);await ready();
  const retainedHelp=await help.evaluate(e=>({expanded:e.open,focused:e.querySelector('summary')===document.activeElement,scroll:scrollY}));
  check(prefix+' async refresh preserves help expansion focus and scroll '+JSON.stringify({before:helpScroll,...retainedHelp}),retainedHelp.expanded&&retainedHelp.focused&&Math.abs(retainedHelp.scroll-helpScroll)<2);
  await helpControl.press('Enter');
@@ -504,6 +508,10 @@ async function verifyDashboard(page,width,fixture){
  check(prefix+' neutral unscheduled explanation remains discoverable',(await help.textContent()).includes('unscheduled does not mean overdue')&&!/Needs Revision|Urgent|Overdue deadline/.test(await page.locator('.attention-panel').innerText()));
  check(prefix+' Monday Sunday saved week and no hypothetical overlays',await page.locator('[data-dashboard-day]').count()===7&&await page.locator('[data-dashboard-day]').first().getAttribute('data-dashboard-day')==='2026-10-26'&&await page.locator('[data-dashboard-day]').last().getAttribute('data-dashboard-day')==='2026-11-01'&&await page.locator('#dashboard-content [data-tentative-placement]').count()===0);
  const tuesday=page.locator('[data-dashboard-day="2026-10-27"]');check(prefix+' dense day accurate count with disclosure',await tuesday.locator('h3>span').innerText()==='15'&&await tuesday.locator('details>summary').first().isVisible());
+ // A token refresh can briefly render a partial course projection. Wait for the
+ // complete saved week before asserting its exact counts and visible dates.
+ await ready();
+ await page.waitForFunction(()=>document.querySelectorAll('.dashboard-day-empty').length===4);
  check(prefix+' mixed-week empty rows retain visible ordered dates',await page.locator('.dashboard-day-empty').count()===4&&await page.locator('[data-dashboard-day] time').evaluateAll(nodes=>nodes.every(n=>n.getClientRects().length>0)&&nodes.map(n=>n.dateTime).join(',')==='2026-10-26,2026-10-27,2026-10-28,2026-10-29,2026-10-30,2026-10-31,2026-11-01'));
  check(prefix+' empty rows are compact single-line dates',await page.locator('.dashboard-day-empty').evaluateAll(nodes=>nodes.every(n=>n.getBoundingClientRect().height<=44&&Math.abs(n.querySelector('time').getBoundingClientRect().top-n.querySelector('.dashboard-empty').getBoundingClientRect().top)<4)));
  await tuesday.locator('[data-dashboard-disclosure="agenda-2026-10-27"]>summary').press('Enter');
@@ -570,6 +578,60 @@ async function verifyDashboard(page,width,fixture){
  await page.locator('[data-workspace-settings]').click();
  check(prefix+' next account cannot see previous account form or editor drafts',await page.locator('#course-name').inputValue()===''&&await page.locator('#restore-file').evaluate(e=>e.files.length===0)&&await page.locator('#private-workspace textarea').evaluateAll(nodes=>nodes.every(n=>!n.value.includes('Unsaved dashboard source-course draft')&&!n.value.includes('Unsaved destination-course draft'))));
  await page.locator('[data-settings-close]').click();
+}
+// Stage A exercises the actual DOM adapter and coordinator with deferred fictional writes.
+async function verifyStageA(page,width,fixture,lesson){
+ const prefix='stage-a-'+width;
+ if(await page.locator('#workspace-settings').evaluate(e=>e.open))await page.locator('[data-settings-close]').click();
+ const open=await page.evaluate(async({courseId,lessonId})=>(await import('./private-workspace.js')).openDashboardDestination(window.testClient,{id:window.testOwner},{courseId,lessonId}),{courseId:fixture.course.id,lessonId:lesson.id});
+ check(prefix+' existing Dashboard document route still opens',open.ok);
+ const before=await page.evaluate(()=>JSON.stringify(window.testDb));
+ await page.locator('[data-private-home]').click();await page.locator('[data-resume-workspace]').click();
+ check(prefix+' navigation never changes saved records',await page.evaluate(original=>JSON.stringify(window.testDb)===original,before));
+ await control(page.locator('[name="objective"]'),'fill','Stage A submitted objective');
+ await page.evaluate(()=>{window.testHoldWrites=true;delete window.testReleaseWrite;window.stageAEditor=document.querySelector('[name="objective"]');});
+ await click(page.locator('[data-private-save="lessons"] button[type="submit"]'));await page.waitForFunction(()=>!!window.testReleaseWrite);
+ check(prefix+' pending save reported by shared coordinator',await page.evaluate(async()=>(await import('./private-workspace.js')).isPrivateWorkspaceBusy()));
+ await page.evaluate(()=>document.querySelector('[data-private-tab="calendar"]').click());
+ check(prefix+' pending save blocks replacement navigation',(await page.locator('#private-status').textContent()).includes('Wait for the current save'));
+ await control(page.locator('[name="objective"]'),'fill','Stage A typed during save');
+ await page.locator('[data-private-home]').click();await page.locator('[data-resume-workspace]').click();
+ check(prefix+' Home retains pending editor node and newer text',await page.evaluate(()=>document.querySelector('[name="objective"]')===window.stageAEditor&&window.stageAEditor.value==='Stage A typed during save'));
+ await page.evaluate(()=>{window.testHoldWrites=false;window.testReleaseWrite();});await page.waitForFunction(()=>document.getElementById('private-status').textContent.startsWith('Submitted changes saved'));
+ check(prefix+' acknowledged save retains newer shared draft',await page.locator('[name="objective"]').inputValue()==='Stage A typed during save'&&await page.evaluate(async()=>(await import('./private-workspace.js')).isPrivateWorkspaceDirty()));
+ check(prefix+' only submitted values reached saved record',await page.evaluate(id=>window.testDb.lessons.find(l=>l.id===id).objective==='Stage A submitted objective',lesson.id));
+ await click(page.locator('[data-private-save="lessons"] button[type="submit"]'));await page.waitForFunction(()=>document.getElementById('private-status').textContent.includes('Saved and verified'));
+ check(prefix+' second manual save uses acknowledged revision without self-conflict',await page.evaluate(id=>window.testDb.lessons.find(l=>l.id===id).objective==='Stage A typed during save',lesson.id));
+ check(prefix+' original lesson and unit identities preserved',await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===lesson.id&&await page.evaluate(({id,unit})=>window.testDb.lessons.find(l=>l.id===id).unit_id===unit,{id:lesson.id,unit:lesson.unit_id}));
+ await control(page.locator('[name="objective"]'),'fill','Stage A failed save draft');await page.evaluate(()=>{window.rejectWrites=true;});
+ await click(page.locator('[data-private-save="lessons"] button[type="submit"]'));await page.waitForFunction(()=>document.getElementById('private-status').textContent.startsWith('Save failed'));
+ check(prefix+' failed manual save retains draft',await page.locator('[name="objective"]').inputValue()==='Stage A failed save draft');
+ await page.evaluate(()=>{window.rejectWrites=false;});await click(page.locator('[data-private-save="lessons"] button[type="submit"]'));await page.waitForFunction(()=>document.getElementById('private-status').textContent.includes('Saved and verified'));
+ check(prefix+' failed save can be retried manually',await page.evaluate(id=>window.testDb.lessons.find(l=>l.id===id).objective==='Stage A failed save draft',lesson.id));
+ for(const table of ['units','lessons']){
+  await click(page.locator('[data-private-tab="'+(table==='units'?'units':'lessons')+'"]'));
+  await click(page.locator('[data-private-add="'+table+'"]'));
+  const create=page.locator('[data-private-create="'+table+'"]');await control(create.locator('[name="title"]'),'fill','Stage A new '+table);
+  const count=await page.evaluate(table=>window.testDb[table].length,table);
+  await page.evaluate(()=>{window.testHoldWrites=true;delete window.testReleaseWrite;});
+  await click(create.locator('button[type="submit"]'));await page.waitForFunction(()=>!!window.testReleaseWrite);
+  await control(create.locator('[name="title"]'),'fill','Stage A newer '+table);
+  await page.evaluate(()=>{window.testHoldWrites=false;window.testReleaseWrite();});await page.waitForFunction(()=>document.getElementById('private-status').textContent.startsWith('Submitted changes saved'));
+  const editor=page.locator('[data-private-save="'+table+'"]'),assigned=await editor.getAttribute('data-id');
+  check(prefix+' '+table+' create retains newer text in assigned-record editor',await editor.locator('[name="title"]').inputValue()==='Stage A newer '+table&&!!assigned);
+  check(prefix+' '+table+' create inserts exactly one record',await page.evaluate(({table,count})=>window.testDb[table].length===count+1,{table,count}));
+  await click(editor.locator('button[type="submit"]'));await page.waitForFunction(()=>document.getElementById('private-status').textContent.includes('Saved and verified'));
+  check(prefix+' '+table+' retry updates same stable ID with no duplicate',await editor.getAttribute('data-id')===assigned&&await page.evaluate(({table,count,id})=>window.testDb[table].length===count+1&&window.testDb[table].find(r=>r.id===id).title==='Stage A newer '+table,{table,count,id:assigned}));
+ }
+ // A previous-account completion cannot resurrect an editor or touch the next account.
+ await page.evaluate(async({courseId,lessonId})=>(await import('./private-workspace.js')).openDashboardDestination(window.testClient,{id:window.testOwner},{courseId,lessonId}),{courseId:fixture.course.id,lessonId:lesson.id});
+ await control(page.locator('[name="objective"]'),'fill','Stage A delayed old-account save');
+ await page.evaluate(()=>{window.testHoldWrites=true;delete window.testReleaseWrite;});await click(page.locator('[data-private-save="lessons"] button[type="submit"]'));await page.waitForFunction(()=>!!window.testReleaseWrite);
+ await page.evaluate(()=>{window.testSignedOut=true;window.testAuthEvent('SIGNED_OUT');});await page.locator('#auth-form').waitFor({state:'visible'});
+ await page.evaluate(()=>{window.testOwner='73000000-0000-4000-8000-000000000002';window.testSignedOut=false;window.testAuthEvent('SIGNED_IN');});await page.waitForFunction(()=>document.querySelector('#storage-status')?.textContent==='No saved courses yet. Create your first course.');
+ await page.evaluate(()=>{window.testHoldWrites=false;window.testReleaseWrite();});await page.waitForFunction(async()=>!(await import('./private-workspace.js')).isPrivateWorkspaceBusy());
+ check(prefix+' delayed account completion cannot expose private editor or draft',await page.locator('#private-workspace').evaluate(e=>e.hidden&&e.childNodes.length===0)&&await page.evaluate(async()=>!(await import('./private-workspace.js')).isPrivateWorkspaceDirty()));
+ check(prefix+' next account retains empty authorized course list',await page.locator('#home-courses [data-private-open]').count()===0);
 }
 async function verifyLossless(page,width,fixture){
  const size=fixture.lessons.length,prefix=`lossless-${size}-${width}`;let downloads=0;page.on('download',()=>downloads++);
@@ -671,7 +733,12 @@ try{
       if(table==='courses'&&columns==='id,name,owner_id,timezone'&&(window.testDashboardFailAll||filters.some(([key,value])=>key==='id'&&value===window.testDashboardFailCourse)))return {data:null,error:{message:'Synthetic course unavailable'}};
       if(table==='calendar_exceptions'&&columns!=='*'&&window.testDashboardFailEvents)return {data:null,error:{message:'Synthetic event read failure'}};
       if(window.testSummaryFailure&&filters.some(([key,value])=>key==='course_id'&&value===window.testSummaryFailure)&&columns.includes('archived_at')&&columns!=='*')return {data:null,error:{message:'Synthetic summary read failure'}};
-      if(insert){if(table!=='courses'||insert.owner_id!==owner)return {data:null,error:{message:'Access denied'}};const row={...insert,id:crypto.randomUUID(),revision:1,updated_at:new Date().toISOString()};db[table].push(row);window.testWrites.push({table,insert});return {data:[structuredClone(row)],error:null};}
+      if(insert){
+       if(table==='courses'?insert.owner_id!==owner:!db.courses.some(c=>c.id===insert.course_id&&c.owner_id===owner))return {data:null,error:{message:'Access denied'}};
+       if(window.testHoldWrites)await new Promise(resolve=>window.testReleaseWrite=resolve);
+       if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};
+       const row={...insert,id:crypto.randomUUID(),revision:1,updated_at:new Date().toISOString()};db[table].push(row);window.testWrites.push({table,insert});return {data:[structuredClone(row)],error:null};
+      }
       let rows=db[table].filter(x=>filters.every(([k,v])=>x[k]===v));
       if(table==='courses')rows=rows.filter(x=>x.owner_id===owner);
       else rows=rows.filter(x=>db.courses.some(c=>c.id===x.course_id&&c.owner_id===owner));
@@ -806,6 +873,7 @@ try{
      check(prefix+' restored copy retains lesson archive flags',await page.evaluate(()=>window.testDb.lessons.filter(l=>l.archived_at!=null).length===8));
     }
     check(prefix+' ZIP includes original and restored course',files.length===3&&files.find(f=>f.name==='backup-manifest.json').value.courseCount===2);
+    if(fixtureName==='synthetic')await verifyStageA(page,width,fixture,chosen);
    }else{
     page.once('dialog',d=>d.accept());await click(page.locator('[data-private-tab="calendar"]'));
     check(prefix+' stored comparison did not write',await page.evaluate(()=>window.testWrites.length===0));

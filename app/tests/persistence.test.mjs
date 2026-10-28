@@ -3,9 +3,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import {createWorkspaceState} from '../workspace-state.js';
+import {createWorkspaceNavigation} from '../workspace-navigation.js';
 import {defaultOutlookPreferences} from "../planning-outlook-view.js";
 const root=new URL("../",import.meta.url);
 const get=p=>readFileSync(new URL(p,root),"utf8");
+const state=get("workspace-state.js");
 const app=get("index.html"),auth=get("auth.js"),workspace=get("private-workspace.js"),config=get("config.js");
 test("standalone modules are syntactically valid",()=>{
  assert.doesNotThrow(()=>new vm.Script(auth.replace(/^import .*$/gm,""),{filename:"auth.js"}));
@@ -28,7 +31,7 @@ test("real writes target canonical lesson and unit tables with revision check",(
 });
 test("failed saves preserve in-form input and report the error",()=>{
  assert.match(workspace,/status\("Save failed: "/);
- assert.match(workspace,/Your unsaved edits remain here/);
+ assert.match(state,/Your unsaved edits remain here/);
  assert.match(workspace,/beforeunload/);
 });
 test("private course exports all related records; demo remains explicitly unsaved",()=>{
@@ -56,7 +59,7 @@ test("unsaved drafts block background refreshes and in-flight responses",async()
   getElementById(id){return id==="private-workspace"?root:{dataset:{},textContent:""};},
   createElement(){return {dataset:{},append(){},remove(){}};},
  };
- const context={document,console,defaultOutlookPreferences,readCompleteCourse:()=>delayed,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
+ const context={document,console,createWorkspaceState,createWorkspaceNavigation,defaultOutlookPreferences,readCompleteCourse:()=>delayed,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
  vm.createContext(context);
  const source=workspace.replace(/^import .*$/gm,"").replace(/^export /gm,"");
  vm.runInContext(source,context,{filename:"private-workspace.js"});
@@ -96,7 +99,7 @@ test("dirty drafts are preserved by auth refresh and require explicit discard",(
  assert.match(workspace,/if\(dirty && !discardUnsaved && !\(switching&&preserveContext\)\)/);
  assert.match(workspace,/editEpoch!==editAtStart/);
  assert.match(workspace,/data-private-reload/);
- assert.match(workspace,/Save conflict: this record changed/);
+ assert.match(state,/Save conflict: this record changed/);
  assert.match(workspace,/\.eq\("revision",record\.revision\)/);
  assert.match(auth,/preserveContext:true/);
 });
