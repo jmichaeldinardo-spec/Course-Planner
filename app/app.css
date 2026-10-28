@@ -116,3 +116,24 @@
 .preview-conflicts{border-left:3px solid #efa38b;padding:12px 28px;background:#332831}
 .event-preview-panel select:disabled,.event-preview-panel option:disabled{color:#b7becb}
 @media(max-width:600px){.event-preview-panel,.event-list{padding:12px}.preview-lesson dl{grid-template-columns:1fr}.preview-lesson [data-private-lesson]{max-width:100%;white-space:normal}.event-preview-panel .private-form-grid{grid-template-columns:1fr}}
+
+
+/* First-pass Home: independent of editing tabs and later widget customization. */
+.private-shell{display:grid;grid-template-columns:minmax(175px,230px) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:24px}
+.private-shell-sidebar{background:#171e2b;border:1px solid #35435b;border-radius:14px;padding:16px;position:sticky;top:16px}
+.private-shell-eyebrow{font-size:.69rem;font-weight:750;letter-spacing:.15em;color:#abb8d6;margin:0 0 18px}
+.private-shell-nav{display:grid;gap:8px}
+.private-shell-nav button{min-height:43px;border:1px solid transparent;border-radius:8px;background:transparent;color:#e6ecf9;text-align:left;padding:10px 12px;cursor:pointer;font:inherit;font-size:.91rem}
+.private-shell-nav button:hover{background:#273249}
+.private-shell-nav button[aria-current=page]{background:#354766;border-color:#6a82a9;color:#fff;font-weight:700}
+.private-shell-nav button:disabled{opacity:.45;cursor:not-allowed}
+.private-shell-content{min-width:0}
+.private-home,.private-course-overview{padding:26px;border:1px solid #41516b;background:#192335;border-radius:14px;min-height:260px}
+.private-home-heading h1{font-size:2rem;letter-spacing:-.035em;margin:6px 0 8px}
+.private-home-heading p,.private-course-overview p{color:#c4cee0;line-height:1.6}
+.private-course-overview h2{margin-top:0}
+.private-course-overview button{border:0;border-radius:8px;background:#bdc9ff;color:#141b2b;font-weight:700;padding:10px 14px;cursor:pointer}
+.private-home .pilot-storage{margin-top:24px;background:#202d42}
+.private-shell .private-workspace{margin-bottom:0}
+.private-shell :focus-visible{outline:3px solid #e6c977;outline-offset:3px}
+@media(max-width:780px){.private-shell{grid-template-columns:1fr}.private-shell-sidebar{position:static;padding:9px}.private-shell-eyebrow{margin:4px 8px}.private-shell-nav{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.private-shell-nav button{font-size:.77rem;padding:9px 6px;text-align:center}.private-home,.private-course-overview{padding:17px}}
