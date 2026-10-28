@@ -80,7 +80,7 @@ retained for other accounts. Existing independent count cards remain below the t
 primary dashboard panels. Default tab/split and persistent-icon boundaries remain
 those of PR #9.
 
-## Personally executed verification
+## Original DEC-094 verification at `37a324e`
 
 - **107 Node tests pass**, no failures/skips: all previous tests plus attention,
   civil-week/DST/zone fallback, archives, multiday/invalid dates, same-date independent
@@ -118,6 +118,60 @@ Dashboard fixture rather than implying a real owner's records were read.
 
 ![Continue Planning with retained unsaved context](dashboard-v02/continue-planning.png)
 ![Saved events with separate course provenance](dashboard-v02/week-exceptions.png)
+
+## DEC-095 — owner-approved readability refinement
+
+Authority: [PR #11 review comment 6460290420](https://github.com/jmichaeldinardo-spec/Course-Planner/pull/11#issuecomment-6460290420)
+and DEC-095 in the current canonical record (revision
+`AHj4eMTIjcBSwzBc9k3-8fLfLhiPOScdRg45AehCU4ebNJEFktM9UfGMm6vkaCTZgbGVIydrgqrgoVYv5QuXGKy9wztDw7auOiUsl5ptXNU`).
+Reconciled the existing draft, local branch and remote at `37a324e` before editing.
+
+The refinement changes presentation in `dashboard.js` and `workspace.css` only.
+Empty dates now use subdued single-line rows; all seven Monday–Sunday dates stay
+visible and chronological. Populated days retain every saved entry, count, type,
+assessment label, uncertainty warning, course attribution and Show more / Course
+calendars disclosure. Day/list/disclosure spacing is tighter, with 44px disclosure
+targets retained on mobile. The Dashboard composition and three-pane workspace
+are unchanged.
+
+Routine overlap, neutral-unscheduled, civil-date/timezone and separate-course event
+explanations move into the native keyboard-accessible **About these summaries**
+disclosure. Loading, course failures, partial/incomplete scope, Retry and actual
+saved-record warnings remain outside this help. The visible week timezone remains.
+Async metadata refresh now restores focus to disclosure summaries as well as buttons;
+expanded state and scroll remain retained. The pure model, owner-scoped reads,
+authentication, save/conflict/archive, backup and scheduling modules are unchanged.
+
+Personally executed on the refined source:
+
+- **107 Node tests pass**, zero failures/skips.
+- **769 full app Chrome browser checks pass**, zero uncaught errors, at 1440px
+  desktop and 390px mobile with added 320px mixed/empty-week checks.
+- **79 focused Dashboard checks pass**, including native help keyboard operation,
+  async refresh focus/expansion/scroll retention, four compact empty rows in a mixed
+  week, seven in an empty week (including Saturday/Sunday), chronological dates,
+  15-entry disclosure with assessment/events, warning visibility, drafts, archived
+  exclusion, exact stable-ID navigation and unchanged saved-record serialization.
+- **265 unchanged marketing/demo checks pass**, 42 screenshots, zero browser
+  errors on standalone rerun. The first concurrent run stopped at the mobile
+  `#customization` navigation-anchor assertion; no marketing source was changed.
+- `git diff --check` passes. No separate build/lint/typecheck script exists.
+
+Full logs and captures are retained locally, Git-excluded, under
+`app/reviews/dec-095/`. The comparison below uses the **same deterministic synthetic
+fixture and clock**, before at `37a324e` and after on the refined source. No real
+owner records or Auth session were used. Original DEC-094 images above are historical.
+
+| Scenario | Before DEC-095 | After DEC-095 |
+| --- | --- | --- |
+| Desktop, mixed week | [Before](dashboard-v02/dec-095/before-desktop-mixed.png) | [After](dashboard-v02/dec-095/after-desktop-mixed.png) |
+| Mobile 390px, mixed week | [Before](dashboard-v02/dec-095/before-mobile-mixed.png) | [After](dashboard-v02/dec-095/after-mobile-mixed.png) |
+| Desktop, wholly empty week | [Before](dashboard-v02/dec-095/before-desktop-empty.png) | [After](dashboard-v02/dec-095/after-desktop-empty.png) |
+| Mobile 390px, wholly empty week | [Before](dashboard-v02/dec-095/before-mobile-empty.png) | [After](dashboard-v02/dec-095/after-mobile-empty.png) |
+
+[Additional 320px mixed-week capture](dashboard-v02/dec-095/after-320px-mixed.png).
+Screenshots are unedited browser captures; the existing keyboard skip link can be
+visible during full-page capture. This refinement needs no migration or data rollback.
 
 ## Outstanding acceptance gates — separately reported
 

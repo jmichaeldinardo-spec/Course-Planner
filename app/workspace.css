@@ -110,3 +110,12 @@ body:has(#private-home:not([hidden])) .workspace-empty{display:none}
 .dashboard-data-notes{padding:12px 0}.dashboard-data-notes li{font-size:.78rem;line-height:1.6}.planning-home .home-courses-title{margin-top:32px;font-size:.95rem}#dashboard-navigation-status:not(:empty){padding:14px;background:var(--raised);border-radius:8px;font-size:.84rem}
 @media(max-width:1050px){.dashboard-primary{grid-template-columns:minmax(0,1fr)}.dashboard-panel{padding:18px}.continue-planning [data-resume-workspace]{flex-direction:column;align-items:flex-start;gap:4px}}
 @media(max-width:700px){.planning-home{padding:24px 16px}.dashboard-panel{padding:16px}.dashboard-panel-heading{flex-wrap:wrap}.dashboard-week-controls{justify-content:flex-start}.planning-home .continue-planning [data-resume-workspace]{font-size:.84rem}.dashboard-week-controls button{min-height:44px}.dashboard-primary{gap:16px}}
+/* DEC-095: compact agenda rows and native, keyboard-accessible reading help. */
+.dashboard-days>section{padding-top:10px;margin-top:8px}.dashboard-days h3{margin-bottom:6px}
+.dashboard-days>section.dashboard-day-empty{display:flex;align-items:baseline;gap:6px;padding-block:7px;margin-top:0;line-height:1.5;color:var(--muted)}
+.dashboard-day-empty h3{margin:0;font-size:.78rem;font-weight:500;flex:none}.dashboard-day-empty .dashboard-empty{font-size:.74rem;line-height:1.5}
+.dashboard-panel .dashboard-week-zone{font-size:.72rem;margin:4px 0 10px}.dashboard-days li{padding-block:7px}
+.dashboard-panel details>summary{min-height:32px;line-height:32px}.dashboard-course-calendars{margin:0}
+.dashboard-help{margin:-4px 0 12px;color:var(--muted);font-size:.77rem}.dashboard-help>summary{cursor:pointer;min-height:32px;line-height:32px;width:fit-content}
+.dashboard-help>div{max-width:76ch;padding:0 0 6px}.dashboard-help p{font-size:.77rem;line-height:1.6;margin:6px 0 10px}
+@media(max-width:700px){.dashboard-panel details>summary,.dashboard-help>summary{min-height:44px;line-height:44px}.dashboard-days>section.dashboard-day-empty{gap:5px}.dashboard-day-empty h3{font-size:.75rem}.dashboard-day-empty .dashboard-empty{font-size:.72rem}}
