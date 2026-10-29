@@ -14,7 +14,7 @@ await mkdir(out,{recursive:true});
 const env={...process.env};
 for(const key of ['COURSE_PLANNER_CALENDAR_FIXTURE','COURSE_PLANNER_BROWSER_FIXTURES','COURSE_PLANNER_BROWSER_OUTPUT','VERCEL_OIDC_TOKEN'])delete env[key];
 env.COURSE_PLANNER_BROWSER_OUTPUT=out;
-if(!full)env.COURSE_PLANNER_BROWSER_FIXTURES='manual-save,central-tabs,teacher-refresh,synthetic,home,dashboard';
+if(!full)env.COURSE_PLANNER_BROWSER_FIXTURES='mobile-workspace,manual-save,central-tabs,teacher-refresh,synthetic,home,dashboard';
 const report={kind:'synthetic-technical-regression',profile:full?'full':'smoke',status:'FAIL',startedAt:new Date().toISOString(),commit:execFileSync('git',['rev-parse','HEAD'],{cwd:app,encoding:'utf8'}).trim(),workingTreeDirty:!!execFileSync('git',['status','--porcelain'],{cwd:app,encoding:'utf8'}).trim(),authenticatedHosted:'NOT_RUN',uxJudgment:'RESERVED_FOR_OWNER',stages:[]};
 async function run(name,argv){
  const log=createWriteStream(resolve(out,name+'.log'));const started=Date.now();let pending='';
