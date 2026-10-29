@@ -10,16 +10,26 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
  const saved=()=>page.evaluate(id=>window.testDb.lessons.find(l=>l.id===id).objective,lesson.id);
  const status=()=>page.locator('#private-status');
  const normal=kind=>click(page.locator('#workspace-navigation [data-private-tab="'+kind+'"]'));
- async function extra(kind){const button=page.locator('[data-sidebar-newtab="'+kind+'"]');if(!await button.isVisible())await page.locator('#sidebar-collapse').click();await click(button);}
+ async function extra(kind){if(await page.locator('.private-primary').evaluate(e=>e.inert))await page.locator('[data-inspector-close]').click();const button=page.locator('[data-sidebar-newtab="'+kind+'"]');if(!await button.isVisible())await page.locator('#sidebar-collapse').click();await click(button);}
  async function choose(value){await page.locator('[data-unsaved-choice="'+value+'"]').click();await page.locator('.unsaved-navigation').waitFor({state:'detached'});}
  async function save(){await click(page.locator('form[data-private-save] button[type="submit"]'));await status().filter({hasText:'Saved and verified'}).waitFor();}
  async function openLesson(newTab=false){await normal('lessons');await click(page.locator('[data-'+(newTab?'open-lesson-tab':'private-lesson')+'="'+lesson.id+'"]').first());}
  async function select(id){await click(page.locator('[data-tab-select="'+id+'"]'));}
  async function close(id,choice){await click(page.locator('[data-tab-close="'+id+'"]'));if(choice)await choose(choice);}
  async function blank(){await click(page.locator('[data-tab-new]'));return activeId();}
- async function create(table,title){await blank();await click(page.locator('[data-tab-create="'+table+'"]'));const f=page.locator('[data-private-create="'+table+'"]');await control(f.locator('[name="title"]'),'fill',title);return {id:await activeId(),draft:await f.getAttribute('data-draft-id')};}
+ async function create(table,title){await blank();await click(page.locator('[data-tab-create="'+table+'"]'));check(prefix+' DEC103 creation '+title+' has no redundant Add or Inspector control',await page.locator('[data-private-add],[data-inspector-open]').count()===0&&await page.locator('.private-inspector').isHidden());const f=page.locator('[data-private-create="'+table+'"]');await control(f.locator('[name="title"]'),'fill',title);return {id:await activeId(),draft:await f.getAttribute('data-draft-id')};}
  async function snapshot(name){await page.screenshot({path:out+'/'+prefix+'-'+name+'.png',fullPage:true});}
  await click(page.locator('#saved-courses [data-private-open="'+fixture.course.id+'"]'));
+ check(prefix+' DEC104 course opens with inspector closed',await page.locator('.private-inspector').isHidden());
+ await normal('units');check(prefix+' DEC103 directory retains intentional Add',await page.locator('[data-private-add="units"]').count()===1);
+ await click(page.locator('[data-private-unit="'+fixture.units[0].id+'"]'));check(prefix+' DEC103 Unit Plan has no prominent Add or Inspector opener',await page.locator('[data-private-add],[data-inspector-open]').count()===0&&await page.locator('.private-inspector').isHidden());
+ await click(page.locator('[data-private-lesson="'+lesson.id+'"]'));check(prefix+' DEC103 Lesson Plan has no prominent Add or Inspector opener',await page.locator('[data-private-add],[data-inspector-open]').count()===0&&await page.locator('.private-inspector').isHidden());
+ await normal('calendar');const calendarView=await activeId();check(prefix+' DEC104 Calendar navigation stays closed',await page.locator('.private-inspector').isHidden());await click(page.locator('[data-private-calendar-day="'+fixture.course.first_day+'"]'));
+ check(prefix+' DEC104 explicit Calendar date opens contextual details',await page.locator('.private-inspector').isVisible());await page.evaluate(()=>{window.dec104Grid=document.querySelector('.saved-month');window.dec104Position=document.querySelector('.private-primary').scrollTop;});
+ await extra('units');check(prefix+' DEC104 non Calendar tab closes Inspector',await page.locator('.private-inspector').isHidden());await select(calendarView);
+ check(prefix+' DEC104 returning Calendar tab remains closed and retains grid position',await page.locator('.private-inspector').isHidden()&&await page.evaluate(()=>document.querySelector('.saved-month')===window.dec104Grid&&document.querySelector('.private-primary').scrollTop===window.dec104Position));
+ await click(page.locator('[data-outlook-open]'));check(prefix+' DEC104 explicit Build remains usable',await page.locator('.private-inspector').isVisible()&&await page.locator('[data-build-schedule-form]').count()===1);await click(page.locator('[data-outlook-close]').last());
+ for(const id of await ids())await close(id);await normal('sequence');
  const decBefore=await page.evaluate(()=>JSON.stringify(window.testDb));
  await normal('units');await click(page.locator('[data-private-unit="'+fixture.units[0].id+'"]'));
  const unitView=await activeId(),connected=page.locator('.connected-lessons');
@@ -52,9 +62,7 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
  await control(field(),'fill','Shared fictional edited from duplicate');await select(viewA);
  check(prefix+' duplicate edits project into the original view',await field().inputValue()==='Shared fictional edited from duplicate');
  await save();baselineSaved='Shared fictional edited from duplicate';await select(viewB);check(prefix+' a duplicate sees the latest saved value without a competing draft',await field().inputValue()===baselineSaved&&await saved()===baselineSaved);await control(field(),'fill','Shared fictional edited from duplicate');await field().evaluate(e=>{e.focus();e.setSelectionRange(4,9);});await select(viewA);await select(viewB);check(prefix+' duplicate view restoration keeps editor caret',await field().evaluate(e=>e.selectionStart===4&&e.selectionEnd===9));await select(viewA);
- await click(page.locator('[data-inspector-close]'));
- check(prefix+' hiding inspector preserves central shared draft',await field().inputValue()==='Shared fictional edited from duplicate'&&await page.locator('.private-inspector').isHidden());
- await click(page.locator('[data-inspector-open]'));check(prefix+' reopening inspector preserves shared raw draft without a discard prompt',await field().inputValue()==='Shared fictional edited from duplicate'&&await page.locator('.unsaved-navigation').count()===0);await click(page.locator('[data-inspector-close]'));
+ check(prefix+' DEC104 central shared draft stays intact with inspector suppressed',await field().inputValue()==='Shared fictional edited from duplicate'&&await page.locator('.private-inspector').isHidden()&&await page.locator('[data-inspector-open]').count()===0);
  await page.evaluate(()=>document.querySelector('.private-primary').scrollTop=170);const pinned=await page.evaluate(()=>{const root=document.querySelector('#private-workspace').getBoundingClientRect(),bar=document.querySelector('[data-tab-host]').getBoundingClientRect(),header=document.querySelector('.private-header').getBoundingClientRect();return {root:root.top,bar:bar.top,bottom:bar.bottom,header:header.top};});check(prefix+' scrolled tabs stay flush to workspace without leaking content above '+JSON.stringify(pinned),Math.abs(pinned.root-pinned.bar)<2&&pinned.header>=pinned.bottom-1);await page.evaluate(()=>document.querySelector('.private-primary').scrollTop=0);
  await snapshot('shared-plan');await close(viewB);
  check(prefix+' closing another holder retains the shared draft without discard',await page.locator('.unsaved-navigation').count()===0&&await field().inputValue()==='Shared fictional edited from duplicate');

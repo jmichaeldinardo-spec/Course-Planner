@@ -154,7 +154,7 @@ function applyDestination(d){
  tab=d.kind;directoryQuery='';directoryUnit='';selectedLesson=d.kind==='lesson-plan'?d.recordId:selectedLesson;selectedUnit=d.kind==='unit-plan'?d.recordId:selectedUnit;
  calendarState={view:'month',anchor:d.date||course.first_day||todayInCourse(course.timezone),selected:d.date||course.first_day||todayInCourse(course.timezone)};
  eventDraft=null;eventPreview=null;sampleSession=null;outlookState=newOutlookState();buildReturnView=null;lastStatus={message:'',kind:'info'};
- inspector={open:!narrowInspector()&&!['new','overview','resources','templates','archive'].includes(tab),kind:tab==='lesson-plan'?'lesson':tab==='unit-plan'?'unit':tab==='calendar'?'day':'none',width:inspector.width||360};
+ inspector={open:false,kind:tab==='lesson-plan'?'lesson':tab==='unit-plan'?'unit':tab==='calendar'?'day':'none',width:inspector.width||360};
  syncDirty();
 }
 function restoreTab({focus=true}={}){
@@ -170,7 +170,7 @@ function restoreTab({focus=true}={}){
  }
  else{root.replaceChildren();applyDestination(e.destination);render();const main=root.querySelector('.private-primary');main.scrollTop=0;}
  syncDirty();
- if(cached?.focus?.node?.isConnected){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
+ if(cached?.focus?.node?.isConnected&&cached.focus.node.getClientRects().length){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
  else if(focus)root.querySelector('.private-primary')?.focus({preventScroll:true});
  if(e.destination.table){const ref=destinationRef(e.destination),draft=workspaceState.draft(ref);if(draft?.error)status('Save failed: '+draft.error,'error');else if(draft)status('Unsaved changes — select Save to store them.','pending');else if(lastStatus.kind==='error'||lastStatus.kind==='pending')status('Saved record loaded.','saved');}
 }
@@ -268,8 +268,9 @@ function captureContext(){
 }
 function restoreContext(context){
  ({directoryQuery,directoryUnit,selectedUnit,selectedLesson,tab,calendarState,eventDraft,eventPreview,sampleSession,outlookState,inspector,buildReturnView,lastStatus}=context.state);
+ inspector={...inspector,open:false};
  bindSavedRecords(context.state.courseId);
- root.replaceChildren(...context.nodes);root.hidden=false;
+ root.replaceChildren(...context.nodes);root.hidden=false;root.querySelector('.private-inspector').hidden=true;
  syncWorkspaceShell(course,sampleSession?'calendar':tab,!!sampleSession);syncInspectorModality();
  for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
 }
@@ -335,14 +336,15 @@ export async function openPrivateCourse(client,user,id,{discardUnsaved=false,pre
 }
 function render({primary=true,detail=true}={}){
  if(!course)return;
+ if(tab!=='calendar')inspector.open=false;
  const display=calendarRecords(),view=sampleSession?'calendar':tab;
  syncWorkspaceShell(course,view,!!sampleSession);
  root.setAttribute?.('aria-label',sampleSession?'Temporary fictional Build Schedule scenario':'Saved curriculum planning');
  const title=destinationNames[view]||'Planning view';
  const summaryView=['new','overview','resources','templates','archive'].includes(view);
  const counts=view==='overview'?{...activeCalendarRecords(display),exceptions:display.exceptions}:display;
- const action=summaryView?'':view==='calendar'?'<button type="button" data-outlook-open class="workspace-primary-action">Build Schedule</button>':`<button type="button" data-private-add="${['units','unit-plan','create-unit'].includes(view)?'units':'lessons'}" class="workspace-primary-action">Add ${['units','unit-plan','create-unit'].includes(view)?'unit':'lesson'}</button>`;
- const header=`<header class="private-header"><div><p class="private-kicker">${sampleSession?'FICTIONAL SUCCESS SCENARIO · IN MEMORY · NOT SAVED':'SAVED WORKSPACE · PRIVATE ACCOUNT'}</p><h2>${escapeHtml(display.course.name)}</h2><h1>${title}</h1><p class="workspace-counts">${counts.units.length} unit(s) · ${counts.lessons.length} lesson(s) · ${counts.exceptions.length} calendar exception(s)</p></div><div class="workspace-toolbar">${action}<button type="button" data-inspector-open ${outlookState.result?'data-outlook-inspect':''} aria-label="${outlookState.result?'Review preview':'Show inspector'}">${outlookState.result?'Review preview':'Inspector'}</button>${sampleSession?'<button type="button" data-build-sample-reset>Reset sample</button><button type="button" data-build-sample-return>Return to your saved course</button>':'<details class="course-actions"><summary>Course actions</summary><button data-private-export type="button">Export course JSON</button><button type="button" data-private-reload>Reload saved data</button></details>'}</div></header>`;
+ const action=summaryView||['unit-plan','lesson-plan','create-unit','create-lesson'].includes(view)?'':view==='calendar'?'<button type="button" data-outlook-open class="workspace-primary-action">Build Schedule</button>':`<button type="button" data-private-add="${['units','unit-plan','create-unit'].includes(view)?'units':'lessons'}" class="workspace-primary-action">Add ${['units','unit-plan','create-unit'].includes(view)?'unit':'lesson'}</button>`;
+ const header=`<header class="private-header"><div><p class="private-kicker">${sampleSession?'FICTIONAL SUCCESS SCENARIO · IN MEMORY · NOT SAVED':'SAVED WORKSPACE · PRIVATE ACCOUNT'}</p><h2>${escapeHtml(display.course.name)}</h2><h1>${title}</h1><p class="workspace-counts">${counts.units.length} unit(s) · ${counts.lessons.length} lesson(s) · ${counts.exceptions.length} calendar exception(s)</p></div><div class="workspace-toolbar">${action}${view==='calendar'?`<button type="button" data-inspector-open ${outlookState.result?'data-outlook-inspect':''} aria-label="${outlookState.result?'Review preview':'Show inspector'}">${outlookState.result?'Review preview':'Inspector'}</button>`:''}${sampleSession?'<button type="button" data-build-sample-reset>Reset sample</button><button type="button" data-build-sample-return>Return to your saved course</button>':'<details class="course-actions"><summary>Course actions</summary><button data-private-export type="button">Export course JSON</button><button type="button" data-private-reload>Reload saved data</button></details>'}</div></header>`;
  const content=view==='new'?renderLauncher(workspaceTabs.closed(course.id).map(t=>tabLabel(t).label)):['unit-plan','lesson-plan','create-unit','create-lesson'].includes(view)?renderIndividualPlan():view==='lessons'?renderLessonDirectory():view==='overview'?renderOverview():['resources','templates','archive'].includes(view)?renderPlaceholder(view):view==='calendar'?renderCalendar():view==='units'?renderUnitList():renderSequence();
  const aside=`<div class="inspector-heading"><span>${inspector.kind==='lesson'?'Lesson details':inspector.kind==='unit'?'Unit details':inspector.kind==='build'?'Build Schedule':inspector.kind==='event'?'Calendar event':'Details'}</span><button type="button" data-private-home>Home</button><button type="button" data-inspector-close aria-label="Close inspector">×</button></div><details class="inspector-size"><summary>Inspector size</summary><label>Width<input type="range" data-inspector-width min="280" max="520" step="20" value="${inspector.width}" aria-label="Inspector width"></label></details><p data-inspector-status data-kind="${lastStatus.kind}" ${['error','pending'].includes(lastStatus.kind)?'':'hidden'}>${escapeHtml(lastStatus.message)}</p><div class="private-inspector-body">${renderInspector()}</div>`;
  const main=root.querySelector?.('.private-primary'),panel=root.querySelector?.('.private-inspector');
@@ -552,7 +554,7 @@ async function workspaceClick(e){
  if(button.dataset.privateLesson&&!sampleSession&&tab!=='calendar'){await navigateTab({kind:'lesson-plan',table:'lessons',recordId:button.dataset.privateLesson});return;}
  if(button.dataset.privateAdd){await navigateTab({kind:button.dataset.privateAdd==='units'?'create-unit':'create-lesson'},{newTab:true});return;}
  if(workspaceState.isSaving()){status("Wait for the current save to finish before changing views.","pending");return;}
- if(button.matches('[data-inspector-open]')){inspector.open=true;if(outlookState.result)inspector.kind='build';else if(inspector.kind==='none')inspector.kind=tab==='calendar'?'day':'none';renderWithFocus('.private-inspector h3,.private-inspector h4',{primary:false});}
+ if(button.matches('[data-inspector-open]')){if(tab!=='calendar')return;inspector.open=true;if(outlookState.result)inspector.kind='build';else if(inspector.kind==='none')inspector.kind=tab==='calendar'?'day':'none';renderWithFocus('.private-inspector h3,.private-inspector h4',{primary:false});}
  else if(button.matches('[data-build-sample-open]')){enterBuildSample();}
  else if(button.matches('[data-build-sample-return]')){leaveBuildSample();renderWithFocus('[data-build-sample-open]');}
  else if(button.matches('[data-build-sample-reset]')){if(!sampleSession)return;resetBuildSample();renderWithFocus('#build-config-title');}

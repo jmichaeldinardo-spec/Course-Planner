@@ -227,3 +227,27 @@ strip visibility. No tabs are permanently inaccessible; the finder may scroll
 vertically through its complete list, while the tab strip never scrolls. This is a
 scoped overflow proposal for owner visual/usability review, not Stage C approval.
 Density screenshots demonstrate 3, 6, 10 and 40 tabs on desktop and narrow widths.
+
+## DEC-103 / DEC-104 final Stage B refinements
+
+Individual Unit Plans, Lesson Plans and their creation views no longer show the
+prominent generic Add action. Intentional creation remains available in planning
+directories, Course Sequence and the unchanged New Tab launcher. The actual Create
+form action remains; insertion positions and sequence policy are unchanged.
+
+The Inspector starts closed, stays closed on new destinations, and closes when
+activating another tab or restoring a course workspace. Non-Calendar views have
+no generic Inspector opener. Calendar retains its explicit Inspector/details,
+date, event, lesson and Build Schedule actions. Those actions may open contextual
+presentation; switching away closes it. Returning to a Calendar tab retains its
+grid, position, selected date, preview state and drafts but leaves the panel closed
+until an explicit Calendar action opens it. Existing explicit Calendar context is
+not collapsed merely by a background saved-data refresh. Hidden Inspector inputs
+are not focused when restoring a view. Manual saves and all canonical/draft stores
+are unchanged.
+
+Owner review: compare directory Add controls with individual/creation views. Open
+Calendar details and Build Schedule explicitly, switch to another tab and return.
+Confirm the panel stays closed until requested, the Calendar position is retained,
+and central plan editing has more space. Repeat on a narrow screen. Technical
+checks do not approve appearance or usability; Stage C remains out of scope.

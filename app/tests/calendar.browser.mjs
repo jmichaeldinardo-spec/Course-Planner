@@ -296,7 +296,7 @@ async function verifyUXStructure(page,width,prefix,fixture){
  check(prefix+' native page scroll anchoring disabled',await page.evaluate(()=>getComputedStyle(document.body).overflowAnchor==='none'));
  check(prefix+' eight persistent course destinations',await page.locator('#workspace-navigation [data-private-tab]').count()===8);
  check(prefix+' calendar quiet primary workspace',await page.locator('.private-primary [aria-label="Read-only schedule diagnostics"],[data-build-result]').count()===0);
- check(prefix+' contextual desktop pane or dismissed mobile sheet',width===390?!(await page.locator('.private-inspector').isVisible()):await page.locator('.private-inspector').isVisible());
+ check(prefix+' Inspector defaults closed on desktop and mobile',await page.locator('.private-inspector').isHidden());
  if(await page.locator('.private-primary').evaluate(e=>e.inert))await page.locator('[data-inspector-close]').click();await page.locator('#sidebar-collapse').click();check(prefix+' sidebar collapses with accessible destinations',await page.locator('body').evaluate((e,width)=>e.classList.contains(width===390?'mobile-nav-open':'sidebar-collapsed'),width)&&await page.getByRole('button',{name:'Calendar',exact:true}).count()===1);await page.locator('#sidebar-collapse').click();
  await page.locator('[data-workspace-settings]').click();check(prefix+' settings dialog opens',await page.locator('#workspace-settings').evaluate(e=>e.open));
  await page.locator('[data-appearance-theme]').selectOption('light');await page.locator('[data-appearance-accent]').selectOption('blue');check(prefix+' local light and accent selection',await page.locator('body').evaluate(e=>e.dataset.theme==='light'&&e.dataset.accent==='blue'));
