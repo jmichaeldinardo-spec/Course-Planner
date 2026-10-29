@@ -20,6 +20,22 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
  async function create(table,title){await blank();await click(page.locator('[data-tab-create="'+table+'"]'));const f=page.locator('[data-private-create="'+table+'"]');await control(f.locator('[name="title"]'),'fill',title);return {id:await activeId(),draft:await f.getAttribute('data-draft-id')};}
  async function snapshot(name){await page.screenshot({path:out+'/'+prefix+'-'+name+'.png',fullPage:true});}
  await click(page.locator('#saved-courses [data-private-open="'+fixture.course.id+'"]'));
+ const decBefore=await page.evaluate(()=>JSON.stringify(window.testDb));
+ await normal('units');await click(page.locator('[data-private-unit="'+fixture.units[0].id+'"]'));
+ const unitView=await activeId(),connected=page.locator('.connected-lessons');
+ check(prefix+' DEC101 connected membership and sequence',JSON.stringify(await connected.locator('[data-private-lesson]').evaluateAll(ns=>ns.map(n=>n.dataset.privateLesson)))===JSON.stringify(fixture.lessons.filter(l=>l.unit_id===fixture.units[0].id).sort((a,b)=>a.position-b.position).map(l=>l.id)));
+ await control(page.locator('[name="essential_questions"]'),'fill','Temporary unit draft');await click(connected.locator('[data-private-lesson]').first());await choose('cancel');check(prefix+' DEC101 unit guard cancels lesson replacement',await page.locator('[name="essential_questions"]').inputValue()==='Temporary unit draft');
+ await click(connected.locator('[data-open-lesson-tab]').first());check(prefix+' DEC101 explicit connected view shares canonical ID',await activeId()!==unitView&&await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===lesson.id);await close(await activeId());
+ await click(connected.locator('[data-private-lesson]').first());await choose('discard');check(prefix+' DEC101 connected click replaces selected view',await activeId()===unitView&&await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===lesson.id);
+ await normal('lessons');await control(page.locator('[data-lesson-unit]'),'selectOption',fixture.units[0].id);await control(page.locator('[data-lesson-search]'),'fill','lesson 2');const filterView=await activeId();
+ check(prefix+' DEC101 unit plus search intersects results',await page.locator('[data-lesson-directory-results] [data-private-lesson]').count()===1);
+ await extra('lessons');check(prefix+' DEC101 new directory starts with All Units',await page.locator('[data-lesson-unit]').inputValue()==='');await control(page.locator('[data-lesson-unit]'),'selectOption',fixture.units[1].id);check(prefix+' DEC101 empty unit explains no matching lessons',(await page.locator('[data-lesson-directory-results]').textContent()).includes('No matching lessons in this unit'));
+ await select(filterView);check(prefix+' DEC101 independent filter and search restored',await page.locator('[data-lesson-unit]').inputValue()===fixture.units[0].id&&await page.locator('[data-lesson-search]').inputValue()==='lesson 2');
+ await normal('units');await click(page.locator('[data-private-unit="'+fixture.units[1].id+'"]'));check(prefix+' DEC101 connected empty state',(await connected.textContent()).includes('No lessons in this unit yet.'));
+ await page.screenshot({path:out+'/'+prefix+'-unit-refinement.png',fullPage:true});
+ check(prefix+' DEC101 navigation and filters perform no writes',await page.evaluate(before=>JSON.stringify(window.testDb)===before&&window.testWrites.length===0,decBefore));
+ for(const id of await ids())await close(id);
+ await normal('sequence');
  let baselineSaved=lesson.objective;const original=await page.evaluate(()=>JSON.stringify(window.testDb)),first=await activeId();
  for(const kind of ['overview','units','lessons','calendar','sequence'])await normal(kind);
  check(prefix+' five sidebar destinations replace the same single view',await tabs().count()===1&&await activeId()===first);

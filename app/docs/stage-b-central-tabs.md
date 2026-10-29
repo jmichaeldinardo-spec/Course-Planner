@@ -178,3 +178,26 @@ they do not validate real Supabase Auth/RLS, network durability or independent
 account security. No hosted authentication setup or owner-course writes ran.
 Supabase/schema/Auth/RLS/grants, security PR #16, optional hosted PR #18, production,
 main, marketing, Google Sheets and Apps Script remain outside this change.
+
+## DEC-101 usability refinements
+
+Individual Unit Plans now show **Lessons in This Unit**, ordered by saved sequence
+position with title, status and archived metadata. A title opens the canonical
+Lesson Plan in the selected tab; ↗ opens another populated tab. Existing dirty-unit
+Save/Discard/Cancel protection applies to replacement. Empty units explain that
+there are no lessons yet. Unit editing is unchanged.
+
+Lesson Planning starts with a native **Unit** selector: All Units or a saved unit.
+Text search applies within that selection. Both controls are independent per-tab
+presentation state, preserved through history, Home and course switching. Filtering
+never changes saved order or membership. Planning directories retain archived
+records as before (now labeled Archived); Calendar keeps its existing active-only
+rules. No new archive workflow is introduced.
+
+For owner review, open a Unit Plan, compare title-click versus ↗, and cancel a
+replacement with an unsaved unit edit. Open two Lesson Planning tabs, select
+separate units and search terms, then switch between them. Check an empty unit
+and a search with no matches on desktop and a narrow screen. Closing the last tab
+still leaves the existing blank launcher; global Home remains in the sidebar.
+Use disposable fictional fixtures for save review. The four hosted courses were
+not accessed by automated verification.
