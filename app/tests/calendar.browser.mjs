@@ -1,3 +1,4 @@
+import {manualSaveFixture,verifyManualSave} from './manual-save.browser.mjs';
 import {verifyCentralTabs} from './central-tabs.browser.mjs';
 import {largeCourseFixture} from './fixtures/large-course.mjs';
 import {dashboardFixture} from './fixtures/dashboard-scenarios.mjs';
@@ -766,7 +767,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser;
 try{
  browser=await chromium.launch({...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),headless:true});
- for(const [fixtureName,fixture] of [['central-tabs',(()=>{const f=scheduleFixture(),extra=scheduleFixture();extra.course={...extra.course,id:previewId(900),name:'Second fictional tab course'};extra.units=extra.units.map(u=>({...u,id:previewId(901),course_id:extra.course.id}));extra.lessons=extra.lessons.map((l,i)=>({...l,id:previewId(910+i),course_id:extra.course.id,unit_id:extra.units[0].id}));f.units.push({...f.units[0],id:previewId(920),title:'Empty fictional unit',position:2},{...f.units[0],id:previewId(921),title:'Other fictional unit',position:3});f.lessons[3].unit_id=previewId(921);f.dashboardExtra=extra;return f;})()],['teacher-refresh',scheduleFixture()],['lossless-1001',largeCourseFixture(1001)],['lossless-1201',largeCourseFixture(1201)],['lossless-2000',largeCourseFixture(2000)],['dashboard',dashboardFixture()],['cards',archived],['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
+ for(const [fixtureName,fixture] of [['manual-save',manualSaveFixture()],['central-tabs',(()=>{const f=scheduleFixture(),extra=scheduleFixture();extra.course={...extra.course,id:previewId(900),name:'Second fictional tab course'};extra.units=extra.units.map(u=>({...u,id:previewId(901),course_id:extra.course.id}));extra.lessons=extra.lessons.map((l,i)=>({...l,id:previewId(910+i),course_id:extra.course.id,unit_id:extra.units[0].id}));f.units.push({...f.units[0],id:previewId(920),title:'Empty fictional unit',position:2},{...f.units[0],id:previewId(921),title:'Other fictional unit',position:3});f.lessons[3].unit_id=previewId(921);f.dashboardExtra=extra;return f;})()],['teacher-refresh',scheduleFixture()],['lossless-1001',largeCourseFixture(1001)],['lossless-1201',largeCourseFixture(1201)],['lossless-2000',largeCourseFixture(2000)],['dashboard',dashboardFixture()],['cards',archived],['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
   const expected=buildCalendarModel(fixture);
   for(const width of [1440,390]){
    const context=await browser.newContext({viewport:{width,height:1000},acceptDownloads:true,serviceWorkers:'block'});context.setDefaultTimeout(20000);
@@ -789,6 +790,10 @@ try{
       async single(){const r=await run();return {...r,data:r.data?.[0]||null};},async maybeSingle(){const r=await run();return {...r,data:r.data?.[0]||null};},then(a,b){return run().then(a,b);}};
      async function run(){
       owner=window.testOwner;
+      if(!patch&&!insert&&table==='courses'&&columns==='*'){
+       if(window.testHoldReadback){window.testHoldReadback=false;await new Promise(resolve=>window.testReleaseReadback=resolve);}
+       if(window.testReadbackFail)return {data:null,error:{message:'Synthetic verification unavailable'}};
+      }
       if(!patch)window.testReads.push({table,filters,bounds,columns,exact});
       if(exact&&table===window.testPageFail&&bounds?.[0]===100)return {data:null,count:null,error:{message:'Synthetic pagination failure'}};
       if(exact&&table==='lessons'&&bounds?.[0]===100&&window.testHoldPage&&(!window.testHoldCourseId||filters.some(([k,v])=>k==='course_id'&&v===window.testHoldCourseId)))await new Promise(resolve=>window.testReleasePage=resolve);
@@ -799,14 +804,14 @@ try{
       if(insert){
        if(table==='courses'?insert.owner_id!==owner:!db.courses.some(c=>c.id===insert.course_id&&c.owner_id===owner))return {data:null,error:{message:'Access denied'}};
        if(window.testHoldWrites)await new Promise(resolve=>window.testReleaseWrite=resolve);
-       if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};
-       const row={...insert,id:crypto.randomUUID(),revision:1,updated_at:new Date().toISOString()};db[table].push(row);persist();window.testWrites.push({table,insert});return {data:[structuredClone(row)],error:null};
+       if(window.rejectWrites)return {data:null,error:{code:'42501',message:'Test write rejected'}};
+       const row={...insert,id:crypto.randomUUID(),revision:1,updated_at:new Date().toISOString()};db[table].push(row);persist();window.testWrites.push({table,insert});if(window.testLoseWriteResponse){window.testLoseWriteResponse=false;throw Error('Synthetic response lost after commit');}return {data:[structuredClone(row)],error:null};
       }
       let rows=db[table].filter(x=>filters.every(([k,v])=>x[k]===v));
       if(table==='courses')rows=rows.filter(x=>x.owner_id===owner);
       else rows=rows.filter(x=>db.courses.some(c=>c.id===x.course_id&&c.owner_id===owner));
       if(patch&&window.testHoldWrites)await new Promise(resolve=>window.testReleaseWrite=resolve);
-      if(patch){window.testWrites.push({table,patch});if(window.rejectWrites)return {data:null,error:{message:'Test network failure'}};rows.forEach(x=>Object.assign(x,patch,{revision:(x.revision||1)+1}));persist();}
+      if(patch){window.testWrites.push({table,patch});if(window.rejectWrites)return {data:null,error:{code:'42501',message:'Test write rejected'}};rows.forEach(x=>Object.assign(x,patch,{revision:(x.revision||1)+1}));persist();if(window.testLoseWriteResponse){window.testLoseWriteResponse=false;throw Error('Synthetic response lost after commit');}}
       const count=rows.length;if(sortKey)rows.sort((a,b)=>a[sortKey]<b[sortKey]?-1:a[sortKey]>b[sortKey]?1:0);
       if(bounds)rows=rows.slice(bounds[0],bounds[1]+1);else if(!patch)rows=rows.slice(0,1000);
       const response={data:structuredClone(rows.map(x=>columns==='*'?x:Object.fromEntries(columns.split(',').map(k=>[k,x[k]])))),error:null,...(exact?{count}:{})};
@@ -841,6 +846,7 @@ try{
     check('auth-'+width+' each course appears once',await page.locator('#saved-courses [data-private-open]').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.privateOpen)).size===3));
     check('auth-'+width+' rendering performs no writes',await page.evaluate(()=>window.testWrites.length===0));
    }
+   if(fixtureName==='manual-save'){await verifyManualSave(page,width,fixture,{check,click,control,out});await context.close();continue;}
    if(fixtureName==='central-tabs'){await verifyCentralTabs(page,width,fixture,{check,click,control,out});await context.close();continue;}
    if(fixtureName==='teacher-refresh'){await verifyTeacherRefresh(page,width,fixture);await context.close();continue;}
    if(fixtureName.startsWith('lossless-')){await verifyLossless(page,width,fixture);await context.close();continue;}
