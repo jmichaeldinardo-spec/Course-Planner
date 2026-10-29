@@ -50,7 +50,7 @@ export function setContinueContext(context={}){
  if(fallback)fallback.hidden=!!currentCourse;
 }
 export function syncWorkspaceShell(course,tab,isSample=false,context={}){
- if(typeof document==='undefined')return;currentCourse=course;currentTab=tab;sample=isSample;
+ if(typeof document==='undefined')return;currentCourse=course;currentTab=({'lesson-plan':'lessons','create-lesson':'lessons','unit-plan':'units','create-unit':'units'}[tab]||tab);sample=isSample;
  document.body.classList.toggle('has-private-course',!!course);setContinueContext(context);
  const name=byId('workspace-course-name');if(name){name.textContent=course?.name||'Choose a course';name.dataset.courseId=course?.id||'';}
  const badge=byId('workspace-sample-badge');if(badge)badge.hidden=!sample;
@@ -59,6 +59,11 @@ export function syncWorkspaceShell(course,tab,isSample=false,context={}){
  renderCourseEntries();syncDestination();
 }
 if(typeof document!=='undefined'){
+ for(const button of document.querySelectorAll('#workspace-navigation [data-private-tab]')){
+  const row=document.createElement('div');row.className='sidebar-destination';button.before(row);
+  const open=document.createElement('button');open.type='button';open.dataset.sidebarNewtab=button.dataset.privateTab;open.textContent='↗';open.setAttribute('aria-label','Open '+button.getAttribute('aria-label')+' in New Tab');open.title='Open in New Tab';row.append(button,open);
+ }
+
  const settings=byId('workspace-settings');
  byId('sidebar-collapse')?.addEventListener('click',()=>{if(matchMedia('(max-width:700px)').matches)document.body.classList.toggle('mobile-nav-open');else document.body.classList.toggle('sidebar-collapsed');navigationState();});
  navigationState();window.addEventListener('resize',navigationState);
