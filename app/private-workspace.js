@@ -147,18 +147,22 @@ let tabResizeObserver=null;
 function renderTabs(){
  const host=root.querySelector?.('[data-tab-host]');if(!host||!course)return;
  const active=workspaceTabs.active(course.id),tabs=workspaceTabs.list(course.id);
- const width=host.querySelector('.tab-strip')?.clientWidth;
- host.innerHTML=renderTabBar(tabs,active,tabLabel,width?visibleTabIds(tabs,active.id,width,narrowInspector()?100:80):undefined);
+ const previous=host.querySelector('.tab-strip'),left=previous?.scrollLeft||0;
+ const touch=matchMedia('(max-width:700px) and (pointer:coarse)').matches;
+ const width=previous?.clientWidth;
+ host.innerHTML=renderTabBar(tabs,active,tabLabel,!touch&&width?visibleTabIds(tabs,active.id,width,narrowInspector()?100:80):undefined);
  const panel=root.querySelector('.private-primary');panel.id='planning-tab-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby','tab-'+active.id);panel.dataset.viewId=active.id;
  if(typeof ResizeObserver!=='undefined'){
   tabResizeObserver?.disconnect();let previous=host.querySelector('.tab-strip').clientWidth;
   tabResizeObserver=new ResizeObserver(()=>{const next=host.querySelector('.tab-strip')?.clientWidth;if(next&&next!==previous){previous=next;renderTabs();}});tabResizeObserver.observe(panel);
  }
- // Measure again after controls are laid out; no scroll position or record state.
- const track=host.querySelector('.tab-strip'),shown=visibleTabIds(tabs,active.id,track.clientWidth,narrowInspector()?100:80);
+ // Measure after layout. Touch scrolling is confined to the strip, never the editor.
+ const track=host.querySelector('.tab-strip'),shown=touch?new Set(tabs.map(t=>t.id)):visibleTabIds(tabs,active.id,track.clientWidth,narrowInspector()?100:80);
  for(const element of track.children)element.hidden=!shown.has(element.querySelector('[data-tab-select]').dataset.tabSelect);
+ if(touch){track.scrollLeft=left;const item=track.querySelector('.selected'),r=item.getBoundingClientRect(),b=track.getBoundingClientRect();if(r.left<b.left)track.scrollLeft+=r.left-b.left;else if(r.right>b.right)track.scrollLeft+=r.right-b.right;}
  const finder=host.querySelector('[data-tab-finder]'),hidden=tabs.length-shown.size;
  finder.setAttribute('aria-label',`Find Open Tabs: ${tabs.length} total, ${hidden} outside strip`);finder.title=`${hidden} tabs outside strip — find all open tabs`;finder.innerHTML='<span>Open Tabs</span> '+(hidden?'+'+hidden:'⌄');
+ if(touch){finder.setAttribute('aria-label',`Find Open Tabs: ${tabs.length} total`);finder.title='Find all open tabs, or swipe the tab strip';}
 }
 function pruneTabViews(){const ids=new Set(workspaceTabs.entries(course.id).map(e=>e.id));for(const [id,ctx] of tabViews)if(ctx.state.courseId===course.id&&!ids.has(id))tabViews.delete(id);}
 function stashTab(){if(course&&root.querySelector?.('.private-primary'))tabViews.set(workspaceTabs.current(course.id).id,captureContext());}
