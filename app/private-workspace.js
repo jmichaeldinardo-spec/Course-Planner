@@ -72,7 +72,7 @@ const workspaceState=createWorkspaceState();
 function updateSaveStatus(){
  const host=$('manual-save-status');if(!host)return;
  const summary=workspaceState.summary();host.hidden=!workspaceState.account();host.dataset.phase=summary.phase;
- const labels={idle:'Manual Save · No pending edits',dirty:'Unsaved changes · Use Save',writing:'Saving…',verifying:'Verifying save…',verified:'All changes saved',rejected:'Not saved · Use Save to retry',conflict:'Not saved · Conflict',unknown:'Save unconfirmed · Check saved data',unconfirmed:'Save unconfirmed'};
+ const labels={idle:'Manual Save · No pending edits',dirty:'Unsaved changes · Use Save',writing:'Saving…',verifying:'Verifying save…',verified:'All changes saved',rejected:'Not saved · Use Save to retry',conflict:'Not saved · Conflict',unknown:'Outcome unknown · Do not resend',unconfirmed:'Write received · Unverified'};
  const message=$('manual-save-message');if(message)message.textContent=labels[summary.phase];
  host.title='Unit and lesson manual saves across open courses. Unsaved drafts and unconfirmed writes remain in this page only.';
  const retry=$('manual-save-retry');if(retry)retry.hidden=!summary.retry;
@@ -184,7 +184,7 @@ function restoreTab({focus=true}={}){
  syncDirty();
  if(cached?.focus?.node?.isConnected&&cached.focus.node.getClientRects().length){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
  else if(focus)root.querySelector('.private-primary')?.focus({preventScroll:true});
- if(e.destination.table){const ref=destinationRef(e.destination),draft=workspaceState.draft(ref),op=workspaceState.operation(ref);if(op&&!op.dismissed&&['unknown','unconfirmed'].includes(op.phase))status(op.phase==='unknown'?'Save outcome unknown. Check saved records before discarding local work.':'Save acknowledged; confirmation failed. Retry verification reads saved data only.','error');else if(draft?.error)status('Save failed: '+draft.error,'error');else if(draft)status('Unsaved changes — select Save to store them.','pending');else if(lastStatus.kind==='error'||lastStatus.kind==='pending')status('Saved record loaded.','saved');}
+ if(e.destination.table){const ref=destinationRef(e.destination),draft=workspaceState.draft(ref),op=workspaceState.operation(ref);if(op&&!op.dismissed&&['unknown','unconfirmed'].includes(op.phase))status(op.phase==='unknown'?'Save outcome unknown. Check saved records before discarding local work.':'Write acknowledged; verification incomplete. Retry verification checks saved data only.','error');else if(draft?.error)status('Save failed: '+draft.error,'error');else if(draft)status('Unsaved changes — select Save to store them.','pending');else if(lastStatus.kind==='error'||lastStatus.kind==='pending')status('Saved record loaded.','saved');}
 }
 function dirtyChoice(label){
  return new Promise(resolve=>{
@@ -651,7 +651,7 @@ async function verifySave(receipt,client,user){
    status(result.newerEdits?'Submitted changes saved, but newer unsaved edits were kept in this form. Save those separately.':'Saved and verified by reloading your private course records.',result.newerEdits?'pending':'saved');
   }
   void refreshWorkspaceCourseSummary(client,ref.courseId);return !result.newerEdits;
- }catch(error){if(workspaceState.isCurrent(ref)){syncDirty();status('Save failed: '+error.message+' The write was acknowledged; Retry verification reads saved data only.','error');renderTabs();}return false;}
+ }catch(error){if(workspaceState.isCurrent(ref)){syncDirty();status('Write acknowledged; verification incomplete. Retry verification checks saved data only and does not send your changes again. Details: '+error.message,'error');renderTabs();}return false;}
 }
 $('manual-save-retry')?.addEventListener?.('click',()=>{const receipt=workspaceState.summary().retry;if(receipt&&api&&owner)void verifySave(receipt,api,owner);});
 async function saveRecord(ref){
@@ -679,7 +679,7 @@ async function saveRecord(ref){
   if(!ref.recordId)promoteCreatedForm(ref,saved.ref);
   if(course?.id===savingCourse){bindSavedRecords(savingCourse);renderTabs();}
   return await verifySave(saved.receipt,client,savingUser);
- }catch(error){if(workspaceState.isCurrent(ref)&&course?.id===savingCourse){workspaceState.reject(ref,error.message);syncDirty();const unknown=workspaceState.operation(ref)?.phase==='unknown';status("Save failed: "+error.message+(unknown?' Save outcome unknown; it may already have succeeded. Do not submit it again. Check saved records before explicitly discarding local work.':''),'error');renderTabs();}return false;}
+ }catch(error){if(workspaceState.isCurrent(ref)&&course?.id===savingCourse){workspaceState.reject(ref,error.message);syncDirty();const unknown=workspaceState.operation(ref)?.phase==='unknown';status(unknown?"Write outcome unknown. It may already have succeeded; do not resend. Check saved records before explicitly discarding local work. Details: "+error.message:"Save failed: "+error.message,'error');renderTabs();}return false;}
 }
 
 root.addEventListener("submit",async e=>{

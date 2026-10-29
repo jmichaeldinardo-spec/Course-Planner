@@ -77,13 +77,13 @@ node app/tests/qa.mjs --full
 ```
 
 `manual-save.test.mjs` adds 13 deterministic coordinator cases;
-`manual-save.browser.mjs` adds 60 browser checks at 1440px/390px. Smoke and full
+`manual-save.browser.mjs` adds 66 browser checks at 1440px/390px. Smoke and full
 runners include them. Existing state assertions now exercise acknowledgement plus
 verification. The old synthetic rejection flag returns an explicit PostgreSQL
 permission error; separate new probes commit a fictional insert and lose its
 response.
 
-Final full run: **154/154 Node tests, 1,155/1,155 browser checks in 39 cases,
+Final full run: **154/154 Node tests, 1,161/1,161 browser checks in 39 cases,
 zero uncaught browser errors**. Evidence, source hashes, resolved development
 failures, and local-review report are retained in the primary project's ignored
 `app/reviews/manual-save-verification/` directory. These are synthetic results,
@@ -109,3 +109,14 @@ Next gate: local diff and owner UX review of feedback, failure/retry wording,
 and navigation. Hosted acceptance needs separately authorized disposable
 fictional records and independent accounts. Autosave, PR/publication, merge,
 deployment, or backend work require a subsequent instruction.
+
+## Feedback refinement before acceptance
+
+Status text is 13.5px at the default root size. Acknowledged readback failures
+now say “Write received · Unverified”, with Retry verification visible in the
+header or mobile Inspector. The longer explanation begins “Write acknowledged;
+verification incomplete” rather than “Save failed”. Unknown writes say
+“Outcome unknown · Do not resend”; rejected/conflicting writes remain “Not saved”.
+Verified submissions and newer unsaved edits retain their distinct feedback.
+The compact acknowledgement explanation remains visible even when diagnostic
+details are outside the scrolled mobile editor. No save/coordinator behavior changed.

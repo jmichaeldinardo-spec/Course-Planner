@@ -25,6 +25,7 @@ export async function verifyManualSave(page,width,fixture,{check,click,control,o
  const reload=async()=>{const accept=d=>d.accept();page.on('dialog',accept);try{await click(page.locator('[data-private-reload]'));await page.waitForFunction(()=>document.querySelector('#private-status')?.textContent==='Loaded from private cloud storage.');}finally{page.off('dialog',accept);}};
  await page.locator('#saved-courses [data-private-open]').first().waitFor();await open();
  check(prefix+' initial status is honest manual idle',await page.locator('#manual-save-message').textContent()==='Manual Save · No pending edits');
+ check(prefix+' feedback font is restrained and readable',await page.locator('#manual-save-message').evaluate(e=>{const size=parseFloat(getComputedStyle(e).fontSize);return size>=13&&size<=14;}));
  await control(field(),'fill','Submitted before verification');await hold();await save();await held();await phase('verifying');
  check(prefix+' acknowledgement remains busy and guarded',await page.evaluate(async()=>(await import('./private-workspace.js')).isPrivateWorkspaceBusy()&&(await import('./private-workspace.js')).isPrivateWorkspaceDirty()));
  await control(field(),'fill','  Newer during verification  ');
@@ -44,6 +45,8 @@ export async function verifyManualSave(page,width,fixture,{check,click,control,o
  // Acknowledged writes can fail verification; retry must be reads only.
  await control(field(),'fill','Acknowledged but unverified');await page.evaluate(()=>window.testReadbackFail=true);await save();await phase('unconfirmed');
  const acknowledgedWrites=await writes();check(prefix+' failed readback remains protected',await page.evaluate(async()=>(await import('./private-workspace.js')).isPrivateWorkspaceDirty())&&await page.locator('#manual-save-retry').isVisible());
+ check(prefix+' incomplete verification is not described as a failed write',await page.locator('#manual-save-message').textContent()==='Write received · Unverified'&&(await page.locator('#private-status').textContent()).startsWith('Write acknowledged; verification incomplete.')&&!(await page.locator('#private-status').textContent()).includes('Save failed:'));
+ check(prefix+' explanation and Retry fit the visible header',await page.locator('#manual-save-status').evaluate(e=>[e.querySelector('span'),e.querySelector('button')].every(n=>{const r=n.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.top>=0&&r.bottom<=59&&r.left>=0&&r.right<=innerWidth&&(hit===n||n.contains(hit));})));
  check(prefix+' unconfirmed receipt triggers unload warning without a draft',await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}));
  await click(page.locator('[data-workspace-settings]'));page.once('dialog',d=>d.dismiss());await page.locator('#auth-signout').click();
  check(prefix+' unconfirmed receipt guards sign-out',await page.locator('#workspace-settings').evaluate(e=>e.open)&&await page.locator('#auth-signout').isVisible());await click(page.locator('[data-settings-close]'));

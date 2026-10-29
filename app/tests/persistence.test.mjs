@@ -31,7 +31,7 @@ test("real writes target canonical lesson and unit tables with revision check",(
  assert.match(workspace,/essential_questions/);
 });
 test("failed saves preserve in-form input and report the error",()=>{
- assert.match(workspace,/status\("Save failed: "/);
+ assert.match(workspace,/"Save failed: "\+error.message/);
  assert.match(state,/Your unsaved edits remain here/);
  assert.match(workspace,/beforeunload/);
 });
