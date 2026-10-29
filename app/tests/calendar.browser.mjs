@@ -41,6 +41,10 @@ const check=(name,condition)=>{checks.push({name,passed:!!condition});assert.ok(
 // exercising existing behaviors. The dedicated UX scenario checks their defaults.
 async function expose(locator){
  const page=locator.page();
+ if(await locator.count()&&!await locator.first().isVisible()){
+  const id=await locator.first().getAttribute('data-tab-select')||await locator.first().getAttribute('data-tab-close');
+  if(id){await page.locator('[data-tab-finder]').click();if(await locator.first().getAttribute('data-tab-close')){await page.locator('[data-finder-close-tab="'+id+'"]').click();return false;}await page.locator('[data-finder-tab="'+id+'"]').click();}
+ }
  if(!await locator.count()&&await page.locator('.private-inspector[hidden]').count())await page.locator('[data-inspector-open]').click();
  if(await locator.count()){
   const settings=await locator.first().evaluate(e=>!!e.closest('#workspace-settings'));

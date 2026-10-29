@@ -91,8 +91,9 @@ durable restoration and autosave are not implemented here.
 
 Tab through native controls. On a focused tab, Left/Right select adjacent views,
 Home/End select the first/last view, and Delete closes the focused view with the
-same dirty protection. The strip scrolls horizontally and reveals the selected
-tab without moving the document. Open Tabs searches the current course's open
+same dirty protection. Under DEC-102, the strip compresses horizontally and keeps the selected
+tab visible without moving the document. At extreme counts the counted Open Tabs
+finder provides access to views outside the bounded strip. Open Tabs searches the current course's open
 views by title, unit, view type or course; Down/Up move among results and Enter
 selects one. Escape closes the finder or cancels a navigation decision.
 
@@ -201,3 +202,28 @@ and a search with no matches on desktop and a narrow screen. Closing the last ta
 still leaves the existing blank launcher; global Home remains in the sidebar.
 Use disposable fictional fixtures for save review. The four hosted courses were
 not accessed by automated verification.
+
+## DEC-102 compressing tabs — proposed overflow treatment for owner review
+
+Tabs share one row and shrink from a 180px preferred width (260px maximum).
+Titles ellipsize while full names remain in accessible labels, tooltips and the
+Open Tabs finder. Selection, close actions, unsaved dots, + New Tab and keyboard
+arrows/Home/End/Delete retain their existing behavior. There is no horizontal
+scroll container or programmatic strip scrolling.
+
+Below an approximately 80px desktop / 100px narrow-screen tab budget, further
+compression would crowd close controls and titles. The demonstrated treatment
+therefore shows a contiguous window in unchanged tab order around the active tab.
+The active tab always remains in the strip; a counted Open Tabs control reports
+how many views are outside it. The finder lists **every** open view with full names
+and unsaved status. Select any result to bring that view into the strip. Each finder row also has
+a close control, using the same unsaved-work guard without selecting that view. Arrow keys and Home/End also reach views outside the
+current window. No tab is closed, reordered or removed from navigation history.
+Resizing the pane recalculates the visible window.
+
+Tradeoff: narrow screens enter this treatment earlier and may show only one tab.
+Comparison of several labels then requires the finder rather than simultaneous
+strip visibility. No tabs are permanently inaccessible; the finder may scroll
+vertically through its complete list, while the tab strip never scrolls. This is a
+scoped overflow proposal for owner visual/usability review, not Stage C approval.
+Density screenshots demonstrate 3, 6, 10 and 40 tabs on desktop and narrow widths.

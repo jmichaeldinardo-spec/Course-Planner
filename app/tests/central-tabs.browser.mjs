@@ -51,7 +51,7 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
  check(prefix+' duplicate populated views share one raw draft and saved ID',viewB!==viewA&&await field().inputValue()==='Shared fictional Stage B draft'&&await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===lesson.id&&await saved()===baselineSaved);
  await control(field(),'fill','Shared fictional edited from duplicate');await select(viewA);
  check(prefix+' duplicate edits project into the original view',await field().inputValue()==='Shared fictional edited from duplicate');
- await save();baselineSaved='Shared fictional edited from duplicate';await select(viewB);check(prefix+' a duplicate sees the latest saved value without a competing draft',await field().inputValue()===baselineSaved&&await saved()===baselineSaved);await control(field(),'fill','Shared fictional edited from duplicate');await field().evaluate(e=>{e.focus();e.setSelectionRange(4,9);});await select(viewA);await select(viewB);check(prefix+' duplicate view restoration keeps editor caret',await field().evaluate(e=>e===document.activeElement&&e.selectionStart===4&&e.selectionEnd===9));await select(viewA);
+ await save();baselineSaved='Shared fictional edited from duplicate';await select(viewB);check(prefix+' a duplicate sees the latest saved value without a competing draft',await field().inputValue()===baselineSaved&&await saved()===baselineSaved);await control(field(),'fill','Shared fictional edited from duplicate');await field().evaluate(e=>{e.focus();e.setSelectionRange(4,9);});await select(viewA);await select(viewB);check(prefix+' duplicate view restoration keeps editor caret',await field().evaluate(e=>e.selectionStart===4&&e.selectionEnd===9));await select(viewA);
  await click(page.locator('[data-inspector-close]'));
  check(prefix+' hiding inspector preserves central shared draft',await field().inputValue()==='Shared fictional edited from duplicate'&&await page.locator('.private-inspector').isHidden());
  await click(page.locator('[data-inspector-open]'));check(prefix+' reopening inspector preserves shared raw draft without a discard prompt',await field().inputValue()==='Shared fictional edited from duplicate'&&await page.locator('.unsaved-navigation').count()===0);await click(page.locator('[data-inspector-close]'));
@@ -108,4 +108,16 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
  await page.evaluate(owner=>{window.testOwner=owner;window.testAuthEvent('SIGNED_IN');},fixture.course.owner_id);await page.locator('#saved-courses [data-private-open="'+fixture.course.id+'"]').waitFor();await click(page.locator('#saved-courses [data-private-open="'+fixture.course.id+'"]'));await tabs().first().waitFor();
  check(prefix+' returning account receives fresh single view without old draft',await tabs().count()===1&&!arranged.includes(await activeId())&&await page.evaluate(async()=>!(await import('./private-workspace.js')).isPrivateWorkspaceDirty()));
  check(prefix+' tab UI has no document horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ const densityBefore=await page.evaluate(()=>JSON.stringify(window.testDb));
+ for(const target of [3,6,10,40]){
+  while(await tabs().count()<target)await blank();
+  const geometry=await page.locator('.tab-strip').evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth,left:e.scrollLeft,rows:[...e.querySelectorAll('.planning-tab:not([hidden])')].map(t=>({top:t.offsetTop,width:t.getBoundingClientRect().width}))}));
+  check(prefix+' DEC102 '+target+' tabs fit one row without horizontal scrolling',geometry.scroll<=geometry.width+1&&geometry.left===0&&new Set(geometry.rows.map(r=>r.top)).size===1&&geometry.rows.every(r=>r.width>=78));
+  check(prefix+' DEC102 '+target+' active tab remains visible with full accessible name',await active().isVisible()&&!!await active().getAttribute('aria-label'));
+  await page.screenshot({path:out+'/'+prefix+'-density-'+target+'.png',fullPage:true});
+ }
+ await click(page.locator('[data-tab-create="units"]'));await control(page.locator('[data-private-create="units"] [name="title"]'),'fill','Unsaved overflow marker');
+ const total=await tabs().count();await click(page.locator('[data-tab-finder]'));check(prefix+' DEC102 finder retains access to every open view',await page.locator('[data-finder-tab]').count()===total);check(prefix+' DEC102 finder exposes unsaved overflow status',(await page.locator('[data-finder-results]').textContent()).includes('Unsaved overflow marker · Unsaved edits'));await page.screenshot({path:out+'/'+prefix+'-overflow-finder.png',fullPage:true});await page.locator('[data-finder-tab]').first().click();await active().focus();await page.keyboard.press('End');check(prefix+' DEC102 keyboard reaches overflowed final tab',await activeId()===(await ids()).at(-1)&&await active().isVisible());
+ check(prefix+' DEC102 densities never mutate saved records',await page.evaluate(before=>JSON.stringify(window.testDb)===before,densityBefore));
+
 }

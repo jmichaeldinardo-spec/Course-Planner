@@ -1,6 +1,6 @@
 import {directoryLessons} from './lesson-directory.js';
 import {createWorkspaceTabs} from './workspace-tabs.js';
-import {renderTabBar,renderLauncher,destinationNames} from './workspace-tab-view.js';
+import {renderTabBar,renderLauncher,destinationNames,visibleTabIds} from './workspace-tab-view.js';
 import {createWorkspaceState} from './workspace-state.js';
 import {createWorkspaceNavigation} from './workspace-navigation.js';
 import {syncWorkspaceShell,showWorkspaceDestination,refreshWorkspaceCourseSummary,setContinueContext} from './workspace-shell.js';
@@ -131,13 +131,22 @@ function tabLabel(t){
  const suffix=duplicates.length>1&&duplicateIndex>=0?` · View ${duplicateIndex+1}`:'';
  return {label:name+suffix,dirty:!!workspaceState.draft(ref||referenceForTab(t)||{}),search:[name,destinationNames[d.kind],units.find(u=>u.id===row?.unit_id)?.title,course.name].filter(Boolean).join(' ')};
 }
+let tabResizeObserver=null;
 function renderTabs(){
  const host=root.querySelector?.('[data-tab-host]');if(!host||!course)return;
- const active=workspaceTabs.active(course.id),scrolled=host.querySelector('.tab-scroll')?.scrollLeft||0;
- host.innerHTML=renderTabBar(workspaceTabs.list(course.id),active,tabLabel);
+ const active=workspaceTabs.active(course.id),tabs=workspaceTabs.list(course.id);
+ const width=host.querySelector('.tab-strip')?.clientWidth;
+ host.innerHTML=renderTabBar(tabs,active,tabLabel,width?visibleTabIds(tabs,active.id,width,narrowInspector()?100:80):undefined);
  const panel=root.querySelector('.private-primary');panel.id='planning-tab-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby','tab-'+active.id);panel.dataset.viewId=active.id;
- const track=host.querySelector('.tab-scroll'),button=host.querySelector('[aria-selected="true"]');track.scrollLeft=scrolled;
- if(button){const start=button.parentElement.offsetLeft,end=start+button.parentElement.offsetWidth;if(start<track.scrollLeft)track.scrollLeft=start;else if(end>track.scrollLeft+track.clientWidth)track.scrollLeft=end-track.clientWidth;}
+ if(typeof ResizeObserver!=='undefined'){
+  tabResizeObserver?.disconnect();let previous=host.querySelector('.tab-strip').clientWidth;
+  tabResizeObserver=new ResizeObserver(()=>{const next=host.querySelector('.tab-strip')?.clientWidth;if(next&&next!==previous){previous=next;renderTabs();}});tabResizeObserver.observe(panel);
+ }
+ // Measure again after controls are laid out; no scroll position or record state.
+ const track=host.querySelector('.tab-strip'),shown=visibleTabIds(tabs,active.id,track.clientWidth,narrowInspector()?100:80);
+ for(const element of track.children)element.hidden=!shown.has(element.querySelector('[data-tab-select]').dataset.tabSelect);
+ const finder=host.querySelector('[data-tab-finder]'),hidden=tabs.length-shown.size;
+ finder.setAttribute('aria-label',`Find Open Tabs: ${tabs.length} total, ${hidden} outside strip`);finder.title=`${hidden} tabs outside strip — find all open tabs`;finder.innerHTML='<span>Open Tabs</span> '+(hidden?'+'+hidden:'⌄');
 }
 function pruneTabViews(){const ids=new Set(workspaceTabs.entries(course.id).map(e=>e.id));for(const [id,ctx] of tabViews)if(ctx.state.courseId===course.id&&!ids.has(id))tabViews.delete(id);}
 function stashTab(){if(course&&root.querySelector?.('.private-primary'))tabViews.set(workspaceTabs.current(course.id).id,captureContext());}
@@ -208,11 +217,11 @@ async function travelTab(step){
 }
 function openTabFinder(){
  const dialog=document.createElement('dialog');dialog.className='workspace-settings open-tabs-dialog';dialog.setAttribute('aria-labelledby','open-tabs-title');
- dialog.innerHTML='<div class="settings-heading"><h2 id="open-tabs-title">Open Tabs</h2><button type="button" data-finder-close>Close</button></div><label>Find an open view<input type="search" data-finder-search placeholder="Title, unit or view type"></label><div data-finder-results></div>';
- const draw=()=>{const query=dialog.querySelector('input').value.toLocaleLowerCase(),list=workspaceTabs.list(course.id).filter(t=>tabLabel(t).search.toLocaleLowerCase().includes(query));dialog.querySelector('[data-finder-results]').innerHTML=list.map(t=>`<button type="button" data-finder-tab="${t.id}">${escapeHtml(tabLabel(t).label)}</button>`).join('')||'<p>No matching open tabs in this course.</p>';};
+ dialog.innerHTML='<div class="settings-heading"><h2 id="open-tabs-title">Open Tabs</h2><button type="button" data-finder-close>Close</button></div><p>All open views in this course. Select a view to bring it into the tab strip.</p><label>Find an open view<input type="search" data-finder-search placeholder="Title, unit or view type"></label><div data-finder-results></div>';
+ const draw=()=>{const query=dialog.querySelector('input').value.toLocaleLowerCase(),list=workspaceTabs.list(course.id).filter(t=>tabLabel(t).search.toLocaleLowerCase().includes(query));dialog.querySelector('[data-finder-results]').innerHTML=list.map(t=>`<div class="finder-row"><button type="button" data-finder-tab="${t.id}">${escapeHtml(tabLabel(t).label)}${tabLabel(t).dirty?' · Unsaved edits':''}</button><button type="button" data-finder-close-tab="${t.id}" aria-label="Close ${escapeHtml(tabLabel(t).label)}">×</button></div>`).join('')||'<p>No matching open tabs in this course.</p>';};
  const close=()=>{dialog.close();dialog.remove();root.querySelector('[data-tab-finder]')?.focus({preventScroll:true});};
  dialog.addEventListener('input',draw);dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
- dialog.addEventListener('click',e=>{const b=e.target.closest('button');if(b?.hasAttribute('data-finder-close'))close();else if(b?.dataset.finderTab){const id=b.dataset.finderTab;close();selectTab(id);root.querySelector('[aria-selected="true"]')?.focus({preventScroll:true});}});
+ dialog.addEventListener('click',e=>{const b=e.target.closest('button');if(b?.hasAttribute('data-finder-close'))close();else if(b?.dataset.finderCloseTab){const id=b.dataset.finderCloseTab;close();void closeTab(id);}else if(b?.dataset.finderTab){const id=b.dataset.finderTab;close();selectTab(id);root.querySelector('[aria-selected="true"]')?.focus({preventScroll:true});}});
  dialog.addEventListener('keydown',e=>{if(!['ArrowDown','ArrowUp'].includes(e.key))return;e.preventDefault();const buttons=[...dialog.querySelectorAll('[data-finder-tab]')],i=buttons.indexOf(document.activeElement);buttons[(i+(e.key==='ArrowDown'?1:buttons.length-1)+buttons.length)%buttons.length]?.focus();});
  document.body.append(dialog);draw();dialog.showModal();dialog.querySelector('input').focus();
 }
@@ -265,7 +274,7 @@ function restoreContext(context){
  for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
 }
 root.addEventListener('focusout',e=>{if(!e.target.matches?.('input,textarea,select'))return;const main=root.querySelector('.private-primary');if(main)editorFocus.set(main,{node:e.target,start:e.target.selectionStart??null,end:e.target.selectionEnd??null});});
-function reset(){tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){tabResizeObserver?.disconnect();tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceBusy(){return workspaceState.isSaving();}
