@@ -163,3 +163,7 @@ Ordinary sidebar clicks replace the selected tab; adjacent ↗ actions open anot
 view. Duplicate Lesson Plans share the existing saved record and unsaved draft.
 Home/Continue and course switching preserve page-memory arrangements; Save remains
 manual. See [architecture, keyboard controls, testing and owner review steps](docs/stage-b-central-tabs.md).
+
+The local [manual-save reliability increment](docs/manual-save-verification.md)
+adds persistent confirmation status and read-only verification retry while
+preserving manual Save and page-memory drafts. It does not implement autosave.

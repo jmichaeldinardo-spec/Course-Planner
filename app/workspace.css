@@ -1,4 +1,14 @@
 /* UX structure v0.1. Scoped presentation; no scheduling or persistence policy. */
+/* Manual-save feedback has stable nodes outside all cached editor contexts. */
+.manual-save-status{margin-left:auto;max-width:58%;font-size:.84375rem;line-height:1.3;text-align:right;color:var(--muted)}
+.manual-save-status button{font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:5px;min-height:32px;margin-left:8px;cursor:pointer}
+.manual-save-status[data-phase=unknown],.manual-save-status[data-phase=unconfirmed],.manual-save-status[data-phase=rejected],.manual-save-status[data-phase=conflict]{color:#f1a6a0}
+[data-theme=light] .manual-save-status:is([data-phase=unknown],[data-phase=unconfirmed],[data-phase=rejected],[data-phase=conflict]){color:#9e302a}
+.pilot-header-inner:has(.manual-save-status:not([hidden])) .pilot-label{display:none}
+.pilot-header{position:sticky;top:0;z-index:20}
+.skip-link:focus{z-index:50}
+.manual-save-inspector{display:none}
+@media(max-width:1100px){.manual-save-inspector{display:flex;align-items:center;justify-content:flex-end;gap:8px;height:44px;position:sticky;top:34px;z-index:2;background:var(--surface);font-size:.84375rem;text-align:right;color:var(--muted)}.manual-save-inspector[data-phase=unknown],.manual-save-inspector[data-phase=unconfirmed],.manual-save-inspector[data-phase=rejected],.manual-save-inspector[data-phase=conflict]{color:#f1a6a0}[data-theme=light] .manual-save-inspector:is([data-phase=unknown],[data-phase=unconfirmed],[data-phase=rejected],[data-phase=conflict]){color:#9e302a}}
 .pilot-app-page{--canvas:#1c1d1f;--surface:#222326;--raised:#292a2e;--line:#3a3b40;--ink:#edede9;--muted:#a8a9ad;--accent:#b2c7b8;--accent-ink:#19251d;--selection:#343b37;--unit-1:#a5bbac;--unit-2:#9faec3;--unit-3:#b7a5bf;--unit-4:#c2b18e;--unit-5:#bda09c;--sidebar-width:224px;background:var(--canvas);color:var(--ink)}
 .pilot-app-page[data-theme=light]{--canvas:#f7f7f4;--surface:#fff;--raised:#efefeb;--line:#d7d8d2;--ink:#242627;--muted:#5e6264;--accent:#42644e;--accent-ink:#fff;--selection:#e5ebe5}
 .pilot-app-page[data-accent=blue]{--accent:#adc5e2;--accent-ink:#162738;--selection:#303943}.pilot-app-page[data-accent=violet]{--accent:#c5b7db;--accent-ink:#281e38;--selection:#39333f}.pilot-app-page[data-accent=amber]{--accent:#d4be93;--accent-ink:#302514;--selection:#3d382e}

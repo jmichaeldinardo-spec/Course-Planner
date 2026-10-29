@@ -69,9 +69,21 @@ function formValues(form,fields){const f=new FormData(form),out={};
  return out;
 }
 const workspaceState=createWorkspaceState();
+function updateSaveStatus(){
+ const host=$('manual-save-status');if(!host)return;
+ const summary=workspaceState.summary();host.hidden=!workspaceState.account();host.dataset.phase=summary.phase;
+ const labels={idle:'Manual Save · No pending edits',dirty:'Unsaved changes · Use Save',writing:'Saving…',verifying:'Verifying save…',verified:'All changes saved',rejected:'Not saved · Use Save to retry',conflict:'Not saved · Conflict',unknown:'Outcome unknown · Do not resend',unconfirmed:'Write received · Unverified'};
+ const message=$('manual-save-message');if(message)message.textContent=labels[summary.phase];
+ host.title='Unit and lesson manual saves across open courses. Unsaved drafts and unconfirmed writes remain in this page only.';
+ const retry=$('manual-save-retry');if(retry)retry.hidden=!summary.retry;
+ for(const mirror of root.querySelectorAll?.('[data-manual-save-feedback]')||[]){
+  mirror.dataset.phase=summary.phase;mirror.querySelector('[data-manual-save-message]').textContent=labels[summary.phase];mirror.querySelector('button').hidden=!summary.retry;
+ }
+}
+workspaceState.subscribe(updateSaveStatus);
 const workspaceTabs=createWorkspaceTabs();
 const navigation=createWorkspaceNavigation({
- hasDraft:(_id,target)=>target?.scope==='view'?!!target.ref&&!target.keepDraft&&!!workspaceState.draft(target.ref):dirty||workspaceState.hasDraft(course?.id),isSaving:()=>workspaceState.isSaving(),
+ hasDraft:(_id,target)=>target?.scope==='view'?!!target.ref&&!target.keepDraft&&workspaceState.needsAttention(target.ref):dirty||workspaceState.hasDraft(course?.id)||workspaceState.hasUnresolved(course?.id),isSaving:()=>workspaceState.isSaving(),
  confirmDiscard:target=>target.choice==='discard'||confirm(target.kind==='reload'?"Discard your unsaved edits and reload saved course data?":"Your current changes are not saved. Discard them?"),
  discard:(id,target)=>{if(target?.scope==='view'&&target.ref){if(!workspaceState.discardRecord(target.ref))return false;syncDirty();return true;}if(!workspaceState.discard(id))return false;dirty=false;lastStatus={message:"",kind:"info"};return true;}
 });
@@ -122,14 +134,14 @@ function referenceForTab(t){
  return t.id===workspaceTabs.active(course.id).id?currentReference():null;
 }
 function otherHolder(ref,except){return !!ref&&workspaceTabs.list(course.id).some(t=>t.id!==except&&sameReference(referenceForTab(t),ref));}
-function syncDirty(){if(course)dirty=!!workspaceState.draft(currentReference()||{});}
+function syncDirty(){if(course)dirty=workspaceState.needsAttention(currentReference()||{});}
 function tabLabel(t){
  const d=t.history[t.index].destination,ref=destinationRef(d),row=ref?workspaceState.editing(ref):null;
  const name=row?.title||destinationNames[d.kind]||'Planning view';
  const duplicates=d.recordId?workspaceTabs.list(course.id).filter(x=>{const o=x.history[x.index].destination;return o.table===d.table&&o.recordId===d.recordId;}):[];
  const duplicateIndex=duplicates.findIndex(x=>x.id===t.id);
  const suffix=duplicates.length>1&&duplicateIndex>=0?` · View ${duplicateIndex+1}`:'';
- return {label:name+suffix,dirty:!!workspaceState.draft(ref||referenceForTab(t)||{}),search:[name,destinationNames[d.kind],units.find(u=>u.id===row?.unit_id)?.title,course.name].filter(Boolean).join(' ')};
+  return {label:name+suffix,dirty:workspaceState.needsAttention(ref||referenceForTab(t)||{}),search:[name,destinationNames[d.kind],units.find(u=>u.id===row?.unit_id)?.title,course.name].filter(Boolean).join(' ')};
 }
 let tabResizeObserver=null;
 function renderTabs(){
@@ -172,12 +184,12 @@ function restoreTab({focus=true}={}){
  syncDirty();
  if(cached?.focus?.node?.isConnected&&cached.focus.node.getClientRects().length){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
  else if(focus)root.querySelector('.private-primary')?.focus({preventScroll:true});
- if(e.destination.table){const ref=destinationRef(e.destination),draft=workspaceState.draft(ref);if(draft?.error)status('Save failed: '+draft.error,'error');else if(draft)status('Unsaved changes — select Save to store them.','pending');else if(lastStatus.kind==='error'||lastStatus.kind==='pending')status('Saved record loaded.','saved');}
+ if(e.destination.table){const ref=destinationRef(e.destination),draft=workspaceState.draft(ref),op=workspaceState.operation(ref);if(op&&!op.dismissed&&['unknown','unconfirmed'].includes(op.phase))status(op.phase==='unknown'?'Save outcome unknown. Check saved records before discarding local work.':'Write acknowledged; verification incomplete. Retry verification checks saved data only.','error');else if(draft?.error)status('Save failed: '+draft.error,'error');else if(draft)status('Unsaved changes — select Save to store them.','pending');else if(lastStatus.kind==='error'||lastStatus.kind==='pending')status('Saved record loaded.','saved');}
 }
 function dirtyChoice(label){
  return new Promise(resolve=>{
   const dialog=document.createElement('dialog');dialog.className='workspace-settings unsaved-navigation';dialog.setAttribute('aria-labelledby','unsaved-navigation-title');
-  dialog.innerHTML=`<h2 id="unsaved-navigation-title">Unsaved changes</h2><p>Keep your changes to ${escapeHtml(label)} before leaving this view?</p><div class="unsaved-actions"><button type="button" data-unsaved-choice="save">Save and Continue</button><button type="button" data-unsaved-choice="discard">Discard Changes</button><button type="button" data-unsaved-choice="cancel">Cancel</button></div>`;
+  dialog.innerHTML=`<h2 id="unsaved-navigation-title">Unsaved changes</h2><p>Keep your changes to ${escapeHtml(label)} before leaving this view?</p><p>Discard Changes removes local edits; it cannot undo a write that reached cloud storage.</p><div class="unsaved-actions"><button type="button" data-unsaved-choice="save">Save and Continue</button><button type="button" data-unsaved-choice="discard">Discard Changes</button><button type="button" data-unsaved-choice="cancel">Cancel</button></div>`;
   let done=false;const finish=choice=>{if(done)return;done=true;dialog.close();dialog.remove();resolve(choice);};
   dialog.addEventListener('close',()=>finish('cancel'));
   dialog.addEventListener('click',e=>{const b=e.target.closest('[data-unsaved-choice]');if(b)finish(b.dataset.unsavedChoice);});dialog.addEventListener('cancel',e=>{e.preventDefault();finish('cancel');});
@@ -188,7 +200,7 @@ async function leaveView(t,{reload=false}={}){
  if(workspaceState.isSaving()){status('Wait for the current save to finish before changing views.','pending');return false;}
  const ref=referenceForTab(t),keepDraft=!reload&&otherHolder(ref,t.id),leavingCourse=course.id,leavingAccount=owner.id;
  let choice;
- if(ref&&workspaceState.draft(ref)&&!keepDraft){choice=await dirtyChoice(workspaceState.editing(ref).title||tabLabel(t).label);if(choice==='cancel'||course?.id!==leavingCourse||owner?.id!==leavingAccount||!workspaceState.isCurrent(ref))return false;if(choice==='save'&&!await saveRecord(ref))return false;}
+ if(ref&&workspaceState.needsAttention(ref)&&!keepDraft){choice=await dirtyChoice(workspaceState.editing(ref).title||tabLabel(t).label);if(choice==='cancel'||course?.id!==leavingCourse||owner?.id!==leavingAccount||!workspaceState.isCurrent(ref))return false;if(choice==='save'&&!await saveRecord(ref))return false;}
  return navigation.transition({kind:reload?'reload':'replace',courseId:course.id,scope:'view',ref,keepDraft,choice}).ok;
 }
 async function navigateTab(d,{newTab=false}={}){
@@ -279,7 +291,7 @@ function reset(){tabResizeObserver?.disconnect();tab='sequence';selectedUnit=nul
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceBusy(){return workspaceState.isSaving();}
-export function isPrivateWorkspaceDirty(){return dirty||workspaceState.hasDraft();}
+export function isPrivateWorkspaceDirty(){return dirty||workspaceState.hasDraft()||workspaceState.hasUnresolved();}
 export async function openPrivateCourse(client,user,id,{discardUnsaved=false,preserveContext=false}={}){
  if(workspaceState.account()&&workspaceState.account()!==user.id)reset();
  workspaceState.setAccount(user.id);workspaceTabs.setAccount(user.id);
@@ -346,7 +358,7 @@ function render({primary=true,detail=true}={}){
  const action=summaryView||['unit-plan','lesson-plan','create-unit','create-lesson'].includes(view)?'':view==='calendar'?'<button type="button" data-outlook-open class="workspace-primary-action">Build Schedule</button>':`<button type="button" data-private-add="${['units','unit-plan','create-unit'].includes(view)?'units':'lessons'}" class="workspace-primary-action">Add ${['units','unit-plan','create-unit'].includes(view)?'unit':'lesson'}</button>`;
  const header=`<header class="private-header"><div><p class="private-kicker">${sampleSession?'FICTIONAL SUCCESS SCENARIO · IN MEMORY · NOT SAVED':'SAVED WORKSPACE · PRIVATE ACCOUNT'}</p><h2>${escapeHtml(display.course.name)}</h2><h1>${title}</h1><p class="workspace-counts">${counts.units.length} unit(s) · ${counts.lessons.length} lesson(s) · ${counts.exceptions.length} calendar exception(s)</p></div><div class="workspace-toolbar">${action}${view==='calendar'?`<button type="button" data-inspector-open ${outlookState.result?'data-outlook-inspect':''} aria-label="${outlookState.result?'Review preview':'Show inspector'}">${outlookState.result?'Review preview':'Inspector'}</button>`:''}${sampleSession?'<button type="button" data-build-sample-reset>Reset sample</button><button type="button" data-build-sample-return>Return to your saved course</button>':'<details class="course-actions"><summary>Course actions</summary><button data-private-export type="button">Export course JSON</button><button type="button" data-private-reload>Reload saved data</button></details>'}</div></header>`;
  const content=view==='new'?renderLauncher(workspaceTabs.closed(course.id).map(t=>tabLabel(t).label)):['unit-plan','lesson-plan','create-unit','create-lesson'].includes(view)?renderIndividualPlan():view==='lessons'?renderLessonDirectory():view==='overview'?renderOverview():['resources','templates','archive'].includes(view)?renderPlaceholder(view):view==='calendar'?renderCalendar():view==='units'?renderUnitList():renderSequence();
- const aside=`<div class="inspector-heading"><span>${inspector.kind==='lesson'?'Lesson details':inspector.kind==='unit'?'Unit details':inspector.kind==='build'?'Build Schedule':inspector.kind==='event'?'Calendar event':'Details'}</span><button type="button" data-private-home>Home</button><button type="button" data-inspector-close aria-label="Close inspector">×</button></div><details class="inspector-size"><summary>Inspector size</summary><label>Width<input type="range" data-inspector-width min="280" max="520" step="20" value="${inspector.width}" aria-label="Inspector width"></label></details><p data-inspector-status data-kind="${lastStatus.kind}" ${['error','pending'].includes(lastStatus.kind)?'':'hidden'}>${escapeHtml(lastStatus.message)}</p><div class="private-inspector-body">${renderInspector()}</div>`;
+  const aside=`<div class="inspector-heading"><span>${inspector.kind==='lesson'?'Lesson details':inspector.kind==='unit'?'Unit details':inspector.kind==='build'?'Build Schedule':inspector.kind==='event'?'Calendar event':'Details'}</span><button type="button" data-private-home>Home</button><button type="button" data-inspector-close aria-label="Close inspector">×</button></div><div class="manual-save-inspector" data-manual-save-feedback><span data-manual-save-message></span><button type="button" data-save-verification-retry hidden>Retry verification</button></div><details class="inspector-size"><summary>Inspector size</summary><label>Width<input type="range" data-inspector-width min="280" max="520" step="20" value="${inspector.width}" aria-label="Inspector width"></label></details><p data-inspector-status data-kind="${lastStatus.kind}" ${['error','pending'].includes(lastStatus.kind)?'':'hidden'}>${escapeHtml(lastStatus.message)}</p><div class="private-inspector-body">${renderInspector()}</div>`;
  const main=root.querySelector?.('.private-primary'),panel=root.querySelector?.('.private-inspector');
  if(!main){root.innerHTML=`<div class="private-frame" style="--inspector-width:${inspector.width}px"><section class="private-primary" tabindex="-1" aria-label="Primary planning workspace"><div class="course-tab-toolbar" data-tab-host></div>${header}<p id="private-status" class="sr-only" role="status" aria-live="polite"></p><div class="private-content">${content}</div></section><aside class="private-inspector" aria-label="Contextual inspector" ${inspector.open?'':'hidden'}>${aside}</aside></div>`;}
  else{
@@ -359,12 +371,14 @@ function render({primary=true,detail=true}={}){
   panel.hidden=!inspector.open;if(detail){const expanded=['.outlook-more','.event-more'].filter(selector=>panel.querySelector(selector)?.open);panel.innerHTML=aside;for(const selector of expanded)panel.querySelector(selector)?.setAttribute('open','');}
   root.querySelector('.private-frame').style.setProperty('--inspector-width',inspector.width+'px');
  }
- projectDrafts();syncDirty();renderTabs();syncInspectorModality();
+ projectDrafts();syncDirty();renderTabs();syncInspectorModality();updateSaveStatus();
 }
 function narrowInspector(){return typeof matchMedia==='function'&&matchMedia('(max-width:1100px)').matches;}
 function syncInspectorModality(){
  const panel=root.querySelector?.('.private-inspector'),main=root.querySelector?.('.private-primary');if(!panel)return;
  const modal=inspector.open&&narrowInspector()&&document.body?.dataset.destination!=='home';main.inert=modal;
+ $('manual-save-message')?.setAttribute?.('aria-live',modal?'off':'polite');
+ const feedback=panel.querySelector('[data-manual-save-message]');if(feedback){feedback.setAttribute('role','status');feedback.setAttribute('aria-live',modal?'polite':'off');feedback.setAttribute('aria-atomic','true');}
  const sidebar=$('workspace-navigation')?.closest?.('.teacher-sidebar');if(sidebar)sidebar.inert=modal;
  if(modal){panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');}else{panel.removeAttribute('role');panel.removeAttribute('aria-modal');}
 }
@@ -512,7 +526,7 @@ root.addEventListener("keydown",e=>{
 let exportRequest=0;
 async function exportCourse(){
  if(sampleSession){status("The sample is not exportable. Return to your saved course for saved-record exports.");return;}
- if(!course || workspaceState.hasDraft(course.id)||workspaceState.isSaving()){status("Save or discard changes before exporting.","error");return;}
+ if(!course || workspaceState.hasDraft(course.id)||workspaceState.hasUnresolved(course.id)||workspaceState.isSaving()){status("Save or discard changes before exporting.","error");return;}
  const client=api,user=owner,id=course.id,request=++exportRequest,readEpoch=epoch,editAtStart=editEpoch,button=root.querySelector('[data-private-export]');
  const isCurrent=()=>request===exportRequest&&epoch===readEpoch&&editEpoch===editAtStart&&owner?.id===user.id&&course?.id===id&&!dirty&&!workspaceState.isSaving()&&!sampleSession;
  if(button)button.disabled=true;status('Verifying a complete saved course export…');
@@ -536,6 +550,7 @@ root.addEventListener("input",e=>{
 });
 async function workspaceClick(e){
  const button=e.target.closest("button");if(!button)return;
+ if(button.hasAttribute('data-save-verification-retry')){const receipt=workspaceState.summary().retry;if(receipt&&api&&owner)await verifySave(receipt,api,owner);return;}
  if(button.matches("[data-private-home]")){showWorkspaceDestination("home");$("home-title")?.focus({preventScroll:true});return;}
  if(button.matches('[data-inspector-close]')){closeInspector();return;}
  if(button.hasAttribute('data-tab-new')){await navigateTab({kind:'new'},{newTab:true});return;}
@@ -610,10 +625,41 @@ root.addEventListener("change",e=>{
  if(e.target.matches('[data-private-select-unit]')){void navigateTab({kind:'unit-plan',table:'units',recordId:e.target.value}).then(ok=>{if(!ok&&e.target.isConnected)e.target.value=selectedUnit;});}
  if(e.target.matches('[data-private-select-lesson]')){void navigateTab({kind:'lesson-plan',table:'lessons',recordId:e.target.value}).then(ok=>{if(!ok&&e.target.isConnected)e.target.value=selectedLesson;});}
 });
+// Promote an acknowledged create without replacing the teacher's form nodes.
+function promoteCreatedForm(ref,nextRef){
+ for(const id of workspaceTabs.promote(ref.courseId,ref.table,ref.draftId,nextRef.recordId))tabViews.delete(id);
+ if(course?.id!==ref.courseId)return;
+ for(const form of root.querySelectorAll('form[data-private-create]')){
+  if(!sameReference(formReference(form),ref))continue;
+  form.dataset.privateSave=ref.table;form.dataset.id=nextRef.recordId;delete form.dataset.privateCreate;delete form.dataset.draftId;
+  form.querySelector('button[type="submit"]').textContent=ref.table==='units'?'Save unit changes':'Save lesson changes';
+  const values=workspaceState.editing(nextRef),fields=ref.table==='units'?unitFields:lessonFields;
+  const missing=fields.filter(([name])=>!form.elements.namedItem(name));
+  if(missing.length){const extra=document.createElement('div');extra.className='private-form-grid';extra.innerHTML=missing.map(f=>field(f,values[f[0]])).join('');form.insertBefore(extra,form.querySelector('button[type="submit"]'));}
+  // Existing Lesson Plans keep their original unit relationship.
+  const unit=form.elements.namedItem('unit_id');if(unit)unit.disabled=true;
+  const disclosure=form.closest('details');if(disclosure)disclosure.querySelector('summary').textContent=ref.table==='units'?'Unit Plan':'Lesson Plan';
+ }
+ const d=destination();if(d?.recordId===nextRef.recordId){tab=d.kind;selectedLesson=ref.table==='lessons'?nextRef.recordId:selectedLesson;selectedUnit=ref.table==='units'?nextRef.recordId:selectedUnit;root.querySelector('.private-header h1').textContent=destinationNames[tab];}
+}
+async function verifySave(receipt,client,user){
+ const ref=receipt.ref;
+ try{
+  const result=await workspaceState.verify(receipt,({isCurrent})=>readCompleteCourse(client,user,ref.courseId,{isCurrent}));
+  if(!result.current)return false;
+  if(course?.id===ref.courseId){bindSavedRecords(ref.courseId);renderTabs();
+   status(result.newerEdits?'Submitted changes saved, but newer unsaved edits were kept in this form. Save those separately.':'Saved and verified by reloading your private course records.',result.newerEdits?'pending':'saved');
+  }
+  void refreshWorkspaceCourseSummary(client,ref.courseId);return !result.newerEdits;
+ }catch(error){if(workspaceState.isCurrent(ref)){syncDirty();status('Write acknowledged; verification incomplete. Retry verification checks saved data only and does not send your changes again. Details: '+error.message,'error');renderTabs();}return false;}
+}
+$('manual-save-retry')?.addEventListener?.('click',()=>{const receipt=workspaceState.summary().retry;if(receipt&&api&&owner)void verifySave(receipt,api,owner);});
 async function saveRecord(ref){
  if(!api||!owner||!course||workspaceState.isSaving())return false;
- const client=api,savingUser=owner,savingOwner=owner.id,savingCourse=ref.courseId,table=ref.table;
+ const client=api,savingUser=owner,savingCourse=ref.courseId,table=ref.table;
  try{
+  const previous=workspaceState.operation(ref);
+  if(previous?.phase==='unconfirmed')return await verifySave(previous,client,savingUser);
   if(!['units','lessons'].includes(table))throw Error('Unknown record type');
   const values=workspaceState.editing(ref),fields=table==='units'?unitFields:lessonFields;
   let patch;
@@ -629,20 +675,11 @@ async function saveRecord(ref){
   const saved=await workspaceState.save(ref,patch,({patch,record})=>record
    ?client.from(table).update(patch).eq('id',record.id).eq("revision",record.revision).select('id,revision').maybeSingle()
    :client.from(table).insert(patch).select('id,revision').single());
-  if(!saved.current||owner?.id!==savingOwner)return false;
-  if(!ref.recordId){for(const id of workspaceTabs.promote(savingCourse,table,ref.draftId,saved.ref.recordId))tabViews.delete(id);}
-  if(course?.id===savingCourse){bindSavedRecords(savingCourse);if(!ref.recordId&&sameReference(currentReference(),saved.ref)){applyDestination(destination());render();}else{syncDirty();renderTabs();}}
-  if(saved.newerEdits){status('Submitted changes saved, but newer unsaved edits were kept in this form. Save those separately.','pending');return false;}
-  const revision=workspaceState.record(saved.ref)?.revision;
-  const isCurrent=()=>workspaceState.isCurrent(saved.ref)&&owner?.id===savingOwner&&workspaceState.record(saved.ref)?.revision===revision;
-  const records=await readCompleteCourse(client,savingUser,savingCourse,{isCurrent});
-  const verified=records[table].find(r=>r.id===saved.ref.recordId);
-  if(!verified||verified.revision!==revision||Object.entries(patch).some(([k,v])=>JSON.stringify(verified[k]??null)!==JSON.stringify(v??null)))throw Error('Save was acknowledged but its readback could not be verified. Check saved data before retrying.');
-  if(!isCurrent())return false;
-  if(!workspaceState.hasDraft(savingCourse))workspaceState.publish(workspaceState.beginRead(savingCourse),records);
-  if(course?.id===savingCourse){bindSavedRecords(savingCourse);if(sameReference(currentReference(),saved.ref)){render();status('Saved and verified by reloading your private course records.','saved');}else renderTabs();}
-  void refreshWorkspaceCourseSummary(client,savingCourse);return true;
- }catch(error){if(owner?.id===savingOwner&&course?.id===savingCourse){syncDirty();status("Save failed: "+error.message,"error");renderTabs();}return false;}
+  if(!saved.current||!workspaceState.isCurrent(saved.ref))return false;
+  if(!ref.recordId)promoteCreatedForm(ref,saved.ref);
+  if(course?.id===savingCourse){bindSavedRecords(savingCourse);renderTabs();}
+  return await verifySave(saved.receipt,client,savingUser);
+ }catch(error){if(workspaceState.isCurrent(ref)&&course?.id===savingCourse){workspaceState.reject(ref,error.message);syncDirty();const unknown=workspaceState.operation(ref)?.phase==='unknown';status(unknown?"Write outcome unknown. It may already have succeeded; do not resend. Check saved records before explicitly discarding local work. Details: "+error.message:"Save failed: "+error.message,'error');renderTabs();}return false;}
 }
 
 root.addEventListener("submit",async e=>{
@@ -658,7 +695,7 @@ root.addEventListener("submit",async e=>{
  if(!form.dataset.privateSave&&!form.dataset.privateCreate)return;
  if(!api||!owner||!course||workspaceState.isSaving())return;
  const button=form.querySelector('button[type="submit"]');button.disabled=true;
- const ref=formReference(form);rememberForm(form);dirty=true;
+ const ref=formReference(form);if(workspaceState.operation(ref)?.phase!=='unconfirmed')rememberForm(form);dirty=true;
  try{await saveRecord(ref);}finally{if(button.isConnected)button.disabled=false;}
 
 });
