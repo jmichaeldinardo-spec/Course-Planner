@@ -5,16 +5,16 @@ const immutable = value => {
  const freeze=object=>{if(object&&typeof object==='object'){Object.values(object).forEach(freeze);Object.freeze(object);}return object;};
  return freeze(copy);
 };
-const key=ref=>JSON.stringify([ref.accountId,ref.generation,ref.courseId,ref.table,ref.recordId]);
+const key=ref=>JSON.stringify([ref.accountId,ref.generation,ref.courseId,ref.table,ref.recordId,ref.recordId?null:ref.draftId]);
 const tables={units:'units',lessons:'lessons',calendar_exceptions:'exceptions'};
 export function createWorkspaceState(){
  let accountId=null,generation=0,pending=null,serial=0;
  const courses=new Map(),drafts=new Map(),reads=new Map();
  const current=token=>token.generation===generation&&token.accountId===accountId;
  const record=ref=>current(ref)?courses.get(ref.courseId)?.[tables[ref.table]]?.find(row=>row.id===ref.recordId)??null:null;
- const reference=(courseId,table,recordId=null)=>{
+ const reference=(courseId,table,recordId=null,draftId=null)=>{
   if(!tables[table])throw new Error('Unknown curriculum record type.');
-  return Object.freeze({accountId,generation,courseId,table,recordId});
+  return Object.freeze({accountId,generation,courseId,table,recordId,draftId:recordId?null:draftId||`draft-${generation}-${++serial}`});
  };
  function edit(ref,values){
   if(!current(ref)||!accountId||!courses.has(ref.courseId))throw new Error('This workspace reference has expired.');
@@ -27,6 +27,8 @@ export function createWorkspaceState(){
   setAccount(id){if(id===accountId)return;accountId=id;generation++;courses.clear();drafts.clear();reads.clear();pending=null;},
   account:()=>accountId,
   reference,
+  isCurrent:current,
+  discardRecord(ref){if(pending&&key(pending.ref)===key(ref))return false;drafts.delete(key(ref));return true;},
   beginRead(courseId){const token={accountId,generation,courseId,request:++serial};reads.set(courseId,token);return token;},
   publish(token,snapshot){
    if(!current(token)||reads.get(token.courseId)!==token)return false;

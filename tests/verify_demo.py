@@ -53,12 +53,32 @@ try:
     c=CDP(next(t['webSocketDebuggerUrl'] for t in tabs if t['type']=='page'))
     for domain in ['Page','Runtime','Log','Network']:c.call(domain+'.enable')
     def ev(expr):
-        r=c.call('Runtime.evaluate',{'expression':expr,'returnByValue':True})
+        r=c.call('Runtime.evaluate',{'expression':expr,'returnByValue':True,'awaitPromise':True})
         if 'exceptionDetails' in r:raise RuntimeError(r['exceptionDetails'])
         return r['result'].get('value')
     def click(selector):
         sel=json.dumps(selector)
-        p=ev(f'''(()=>{{const e=document.querySelector({sel});if(!e)throw Error('Missing '+{sel});e.scrollIntoView({{block:'center',behavior:'instant'}});const r=e.getBoundingClientRect();return {{x:r.x+r.width/2,y:r.y+r.height/2}}}})()''')
+        # An earlier smooth anchor scroll can resume after scrollIntoView('instant'),
+        # moving the target between mouse-down and mouse-up. Settle it first,
+        # then settle our own scroll and verify the actual pointer hit target.
+        p=ev(f'''(async()=>{{
+            const e=document.querySelector({sel});if(!e)throw Error('Missing '+{sel});
+            async function settle(){{
+                const deadline=performance.now()+3000;let previous=null,stable=0;
+                while(performance.now()<deadline){{
+                    await new Promise(requestAnimationFrame);
+                    const r=e.getBoundingClientRect(),position=[scrollX,scrollY,r.x,r.y,r.width,r.height];
+                    stable=previous&&position.every((v,i)=>Math.abs(v-previous[i])<0.1)?stable+1:0;
+                    if(stable>=3)return;
+                    previous=position;
+                }}
+                throw Error('Click target did not settle: '+{sel});
+            }}
+            await settle();e.scrollIntoView({{block:'center',behavior:'instant'}});await settle();
+            const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;
+            if(!r.width||!r.height||!e.contains(document.elementFromPoint(x,y)))throw Error('Click target is obscured: '+{sel});
+            return {{x,y}};
+        }})()''')
         for kind in ['mousePressed','mouseReleased']:
             c.call('Input.dispatchMouseEvent',{'type':kind,'x':p['x'],'y':p['y'],'button':'left','clickCount':1})
         time.sleep(.06)

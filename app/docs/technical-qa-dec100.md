@@ -34,7 +34,7 @@ fixture infrastructure, run the complete existing browser matrix:
 node app/tests/qa.mjs --full
 ```
 
-The normal smoke profile selects `teacher-refresh`, `synthetic`, `home`, and
+The normal smoke profile selects `central-tabs`, `teacher-refresh`, `synthetic`, `home`, and
 `dashboard`, plus the existing empty-course check. The full profile includes all
 built-in synthetic scenarios, including the 1,001/1,201/2,000-lesson export cases.
 The runner clears inherited stored-fixture and browser-filter variables; neither
@@ -142,3 +142,11 @@ implementation gated on Stage A review/approval and an explicit next instruction
 this QA change does not authorize Stage B or any merge. PR #16/F3, production,
 Supabase configuration/schema, the canonical spreadsheet and Apps Script are
 unchanged.
+
+## Stage B follow-up
+
+The same smoke/CI command now includes the central-tab acceptance scenario at both
+widths. It verifies presentation identities, shared drafts, per-tab histories and
+state, last-holder Save/Discard/Cancel, simultaneous uncreated plans, delayed saves
+and account isolation. Existing persistence, scheduling and export/restore tests
+remain in the suite. See [Stage B behavior and verification](stage-b-central-tabs.md).

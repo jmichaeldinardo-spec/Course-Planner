@@ -136,7 +136,7 @@ Templates and Archive open feature-specific Under development views. My Courses
 and `+` use the existing owner-scoped load/create flows. Home, per-course drafts,
 selection, inspector, scroll and icon choices are page-memory only. Save before
 closing/reloading; sign-out clears contexts after the existing dirty warning.
-Tabs/groups/splits and persistent icon metadata remain separately reviewed work.
+Stage B central tabs are described below; groups/splits and persistent icon metadata remain separately reviewed work.
 See [reconciliation, acceptance evidence and limits](docs/home-navigation.md).
 
 ## Dashboard v0.2 — Issue #10 / DEC-094
@@ -155,3 +155,11 @@ browser matrix. No sign-in or saved-course access is required. See the
 Automated PASS/FAIL covers mechanical behavior; UX and product-design judgment
 remain with the owner. Hosted PR #18 stays optional pending isolated test accounts
 and disposable hosted fixtures.
+
+## Stage B — central planning tabs
+
+One course can now retain multiple planning views in a single central pane.
+Ordinary sidebar clicks replace the selected tab; adjacent ↗ actions open another
+view. Duplicate Lesson Plans share the existing saved record and unsaved draft.
+Home/Continue and course switching preserve page-memory arrangements; Save remains
+manual. See [architecture, keyboard controls, testing and owner review steps](docs/stage-b-central-tabs.md).
