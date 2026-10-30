@@ -710,4 +710,4 @@ window.addEventListener('workspace-destination',()=>{if(course){navigation.trans
 window.addEventListener('resize',()=>{if(course)syncInspectorModality();});
 window.addEventListener("beforeunload",event=>{if(isPrivateWorkspaceDirty()){event.preventDefault();event.returnValue="";}});
 
-window.addEventListener('phone-workspace-action',e=>{if(!course)return;if(e.detail==='views')openTabFinder();else if(e.detail==='new'){document.querySelector('.open-tabs-dialog')?.dispatchEvent(new Event('cancel',{cancelable:true}));void navigateTab({kind:'new'},{newTab:true});}});
+window.addEventListener('phone-workspace-action',e=>{if(!course)return;if(e.detail?.kind==='summary'){void navigateTab({kind:'overview'},{newTab:e.detail.newTab});return;}if(e.detail==='views')openTabFinder();else if(e.detail==='new'){document.querySelector('.open-tabs-dialog')?.dispatchEvent(new Event('cancel',{cancelable:true}));void navigateTab({kind:'new'},{newTab:true});}});

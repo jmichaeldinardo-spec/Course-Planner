@@ -43,6 +43,7 @@ const check=(name,condition)=>{checks.push({name,passed:!!condition});assert.ok(
 // exercising existing behaviors. The dedicated UX scenario checks their defaults.
 async function expose(locator){
  const page=locator.page();
+ if(await page.locator('#phone-navigate').isVisible()&&String(locator).includes('#workspace-navigation')&&String(locator).includes('overview')&&!await locator.count()){await click(page.locator('#phone-shell [data-private-tab=overview]'));return false;}
  if(await locator.count()&&await page.locator('#workspace-settings').evaluate(e=>e.open)&&!await locator.first().evaluate(e=>!!e.closest('#workspace-settings')))await page.locator('[data-settings-close]').click();
  if(await page.locator('#phone-navigate').isVisible()&&await locator.count()){
   const target=await locator.first().evaluate(e=>({aside:!!e.closest('.teacher-sidebar'),course:e.dataset.privateOpen,id:e.dataset.tabSelect,close:e.dataset.tabClose,newView:e.hasAttribute('data-tab-new'),finder:e.hasAttribute('data-tab-finder'),history:e.dataset.tabHistory,courseOption:!!e.closest('#saved-courses'),icon:e.dataset.courseIcon}));
@@ -311,7 +312,7 @@ async function verifySampleInterface(page,width,prefix,fixture){
 async function verifyUXStructure(page,width,prefix,fixture){
  const before=await page.evaluate(()=>JSON.stringify(window.testDb));
  check(prefix+' native page scroll anchoring disabled',await page.evaluate(()=>getComputedStyle(document.body).overflowAnchor==='none'));
- check(prefix+' eight persistent course destinations',await page.locator('#workspace-navigation [data-private-tab]').count()===8);
+ check(prefix+' eight persistent course destinations',await page.locator('.teacher-sidebar [data-private-tab]').count()===8);
  check(prefix+' calendar quiet primary workspace',await page.locator('.private-primary [aria-label="Read-only schedule diagnostics"],[data-build-result]').count()===0);
  check(prefix+' Inspector defaults closed on desktop and mobile',await page.locator('.private-inspector').isHidden());
  if(await page.locator('.private-primary').evaluate(e=>e.inert))await click(page.locator('[data-inspector-close]'));await click(page.locator('#sidebar-collapse'));check(prefix+' sidebar collapses with accessible destinations',await page.locator('body').evaluate((e,width)=>e.classList.contains(width===390?'mobile-nav-open':'sidebar-collapsed'),width)&&await page.getByRole('button',{name:'Calendar',exact:true}).count()===1);await click(page.locator('#sidebar-collapse'));
@@ -373,7 +374,7 @@ async function verifyHomeNavigation(page,width,fixture){
  check(prefix+' Dashboard selected on Home',await page.locator('[data-global-home]').getAttribute('aria-current')==='page');
  check(prefix+' Home course names readable',fixture.empty||await page.locator('#home-courses .course-label').first().isVisible());
  check(prefix+' immediate Dashboard divider',await page.locator('[data-global-home]').evaluate(e=>e.nextElementSibling.tagName==='HR'));
- check(prefix+' correct course destination order',(await page.locator('#workspace-navigation [data-private-tab]').evaluateAll(ns=>ns.map(n=>n.dataset.privateTab).join(',')))==='overview,sequence,units,lessons,calendar,resources,templates,archive');
+ check(prefix+' correct course destination order',(await page.locator('#workspace-navigation [data-private-tab]').evaluateAll(ns=>ns.map(n=>n.dataset.privateTab).join(',')))===(width<=700?'sequence,units,lessons,calendar,resources,templates,archive':'overview,sequence,units,lessons,calendar,resources,templates,archive'));
  if(fixture.empty){
   check(prefix+' empty account offers create without broken resume',!await page.locator('[data-resume-workspace]').isVisible()&&(await page.locator('#home-courses').innerText()).includes('No courses'));
   await page.screenshot({path:resolve(out,prefix+'-home.png')});

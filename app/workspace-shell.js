@@ -12,7 +12,7 @@ function navigationState(){const b=byId('sidebar-collapse');if(!b)return;const e
 function syncDestination(){
  document.body.dataset.destination=destination;
  const home=byId('private-home');if(home)home.hidden=!accountId||destination!=='home';
- byId('workspace-navigation')?.querySelectorAll('button').forEach(b=>{const active=b.hasAttribute('data-global-home')?destination==='home':destination==='workspace'&&b.dataset.privateTab===currentTab;b.disabled=b.hasAttribute('data-global-home')?!accountId:!currentCourse;b.setAttribute('aria-pressed',String(active));if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+ document.querySelector('.teacher-sidebar')?.querySelectorAll('#workspace-navigation button,.sidebar-destination button').forEach(b=>{const active=b.hasAttribute('data-global-home')?destination==='home':destination==='workspace'&&b.dataset.privateTab===currentTab;b.disabled=b.hasAttribute('data-global-home')?!accountId:!currentCourse;b.setAttribute('aria-pressed',String(active));if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  document.querySelectorAll('[data-resume-workspace]').forEach(b=>b.hidden=!currentCourse);
  document.querySelectorAll('[data-create-course]').forEach(b=>b.disabled=!accountId);
  document.body.classList.remove('mobile-nav-open');navigationState();

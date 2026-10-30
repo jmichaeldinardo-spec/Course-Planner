@@ -42,3 +42,11 @@ Run `node app/tests/qa.mjs --full`. Physical iOS Safari/Android, screen readers,
 real keyboard/chrome behavior and authenticated hosted acceptance remain separate
 owner acceptance gates. No auth email, protected preview access, CPD/workbook
 change, production deployment or merge is authorized by this implementation.
+
+## DEC-106 Home clarification
+
+On phones, the primary menu labels the global Dashboard destination Home.
+The existing Overview row moves into the Current course section as Course summary,
+using the same guarded navigation/new-view paths and selection authority. It is
+not a second Home. Home and summary selection remain mutually exclusive. Desktop
+labels, row placement and behavior are restored unchanged at the breakpoint.
