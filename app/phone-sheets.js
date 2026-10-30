@@ -1,10 +1,12 @@
 import {createSheetPositions} from './sheet-positions.js';
 // Phone presentation/gestures only. All view mutations are supplied by workspace authority.
 export function createPhoneSheets(adapter){
- let active=null;
+ let active=null,suspended=null;
+ globalThis.window?.addEventListener('phone-sheet-resume',()=>{const prior=suspended;suspended=null;if(prior){if(prior.current()&&!document.querySelector('dialog[open]:not(.unsaved-navigation)'))prior.resume();else reset();}});
+ globalThis.window?.addEventListener('workspace-destination',()=>{if(suspended&&!suspended.current())reset();});
  const reduced=()=>matchMedia('(prefers-reduced-motion:reduce)').matches;
  const animate=(node,frames,duration=180)=>node.animate(frames,{duration:reduced()?0:duration,easing:'cubic-bezier(.2,.8,.2,1)'}).finished.catch(()=>{});
- function reset(){if(active){active.cleanup?.();active.node.remove();active=null;window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:null}));}}
+ function reset(){suspended=null;if(active){active.cleanup?.();active.node.remove();active=null;window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:null}));}}
  function open(kind){
   if(active?.node.isConnected&&active.kind===kind){void active.close();return;}
   reset();let model=adapter.context();if(!model)return;
@@ -19,7 +21,19 @@ export function createPhoneSheets(adapter){
    if(active!==state)return false;
    reset();document.querySelector(kind==='views'?'#phone-views':'#phone-new')?.focus({preventScroll:true});return true;
   }};
-  node.dismiss=state.close;node.resetSheet=reset;active=state;
+  node.dismiss=state.close;node.resetSheet=()=>{
+   if(state.closing){reset();return;}
+   const snap=positions.snapshot(),scroll=body.scrollTop;
+   state.cleanup();node.remove();
+   suspended={current:model.current,resume:()=>{
+    if(document.activeElement?.matches('input,textarea,[contenteditable=true]'))document.activeElement.blur();
+    model=adapter.context();draw();
+    for(const b of node.querySelectorAll('[data-finder-history]'))b.disabled=Number(b.dataset.finderHistory)<0?!model.back:!model.forward;
+    window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:node}));
+    positions=createSheetPositions({node,handle,dismiss:state.close,initialSnap:snap});body.scrollTop=scroll;handle.focus({preventScroll:true});
+   }};
+   window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:null}));
+  };active=state;
   let positions,stopDrag=()=>{};state.cleanup=()=>{stopDrag();positions?.dispose();};
   const current=()=>active===state&&!state.closing&&node.isConnected&&model.current();
   const choose=async(action)=>{if(await state.close()&&model.current())await action();};

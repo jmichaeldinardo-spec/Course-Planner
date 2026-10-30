@@ -1,5 +1,5 @@
 // Shared phone-sheet presentation only: no workspace, record or persistence state.
-export function createSheetPositions({node,handle,dismiss}){
+export function createSheetPositions({node,handle,dismiss,initialSnap='compact'}){
  let snap='compact',pull=null,moved=false,animation=null,disposed=false;
  const toolbar=document.querySelector('.phone-toolbar');
  function heights(){
@@ -41,6 +41,6 @@ export function createSheetPositions({node,handle,dismiss}){
  handle.addEventListener('pointerup',release);handle.addEventListener('pointercancel',release);
  handle.addEventListener('click',e=>{if(disposed||(e.detail>0&&moved))return;settle(snap==='compact'?'expanded':'compact');});
  handle.addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown'].includes(e.key)||disposed)return;e.preventDefault();if(e.key==='ArrowUp')settle('expanded');else if(snap==='expanded')settle('compact');else void dismiss();});
- settle('compact',false);
- return {dispose(){disposed=true;pull=null;cancel();observer.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);}};
+ settle(initialSnap,false);
+ return {snapshot:()=>snap,dispose(){disposed=true;pull=null;cancel();observer.disconnect();window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);}};
 }

@@ -108,3 +108,8 @@ Viewport/toolbar resize recalculates the selected position without rebuilding
 content or workspace state. Only the sheet list scrolls. Heights and thresholds
 remain owner-calibration choices; physical Safari testing is still required.
 The generic sheet-positions module owns no records, views or persistence.
+
+An open sheet is suspended without desktop rendering when the viewport crosses
+the desktop breakpoint. Returning to phone mode restores its position using the
+current workspace authority. Course changes and account reset
+invalidate that temporary UI state; no view or record snapshot is stored.
