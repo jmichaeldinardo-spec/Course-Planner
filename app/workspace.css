@@ -185,3 +185,62 @@ body:has(#private-home:not([hidden])) .workspace-empty{display:none}
  .tab-strip{overflow-x:auto;overscroll-behavior-x:contain}
  .planning-tab{flex:0 0 min(180px,100%);min-width:min(180px,100%)}
 }
+
+/* DEC-105–108 phone foundation. Desktop presentation and record authority unchanged. */
+#phone-shell{display:none}
+@media(max-width:700px){
+ html:has(.pilot-app-page),body.pilot-app-page{height:100%;overflow:hidden}
+ .pilot-main{height:calc(100dvh - 59px - 68px - env(safe-area-inset-bottom));overflow:hidden;padding:0!important}
+ .teacher-shell{display:block;height:100%;min-height:0}.teacher-workspace{height:100%;overflow:hidden}
+ .private-workspace{height:100%}.private-primary{height:100%;overflow:auto;overscroll-behavior-y:contain;padding:16px}
+ .private-primary .private-header{position:static;margin-top:0}.course-tab-toolbar{display:none}
+ #private-home,#account-home{box-sizing:border-box;max-height:100%;overflow:auto;overscroll-behavior-y:contain}
+ .legacy-demonstration,.pilot-footer{display:none}
+ #phone-shell{display:block;position:fixed;inset:59px 0 0;pointer-events:none;z-index:26}
+ .phone-toolbar{pointer-events:auto;position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-around;padding:6px 12px calc(6px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line)}
+ .phone-toolbar button{min-width:64px;min-height:56px;border:0;border-radius:12px;background:transparent;color:var(--ink);font:inherit;font-size:22px}.phone-toolbar span{display:block;font-size:12px}
+ #phone-shell .teacher-sidebar{pointer-events:auto;position:absolute;top:0;left:0;width:min(355px,90vw);height:calc(100% - 68px - env(safe-area-inset-bottom));overflow:auto;overflow-x:hidden;overscroll-behavior:contain;transform:translateX(-105%);transition:transform .22s ease,visibility 0s linear .22s;visibility:hidden;padding:16px;touch-action:pan-y;box-shadow:16px 0 40px #0007}
+ .phone-navigation-open #phone-shell .teacher-sidebar{transform:translateX(0);visibility:visible;transition-delay:0s}
+ .phone-navigation-open .private-primary,.phone-navigation-open #private-home{overflow:hidden}
+ .phone-backdrop{pointer-events:auto;position:absolute;inset:0 0 calc(68px + env(safe-area-inset-bottom));border:0;background:#0008;width:100%}
+ #phone-shell .sidebar-brand,#phone-shell .private-nav button span,#phone-shell .sidebar-bottom button span,#phone-shell .course-label{display:block}
+ #phone-shell .sidebar-heading{padding:0;justify-content:space-between}#phone-shell .sidebar-heading #sidebar-collapse{margin-left:auto}
+ #phone-shell .private-nav button{justify-content:flex-start;white-space:normal}
+ #phone-shell [data-sidebar-newtab]{display:flex!important}#phone-shell .courses-heading,#phone-shell #storage-status{display:none}
+ .phone-courses{margin:12px 0 20px}.phone-courses p{font-size:12px;text-transform:uppercase;color:var(--muted)}
+ #phone-course-toggle{width:100%;background:var(--selection);border:1px solid var(--line);min-height:56px;overflow-wrap:anywhere}
+ #phone-course-options{animation:phone-dropdown .18s ease}#phone-shell #saved-courses li{flex-direction:row}#phone-shell #saved-courses li[hidden]{display:none}#phone-shell .course-icon-edit{display:none}
+ .open-tabs-dialog{position:fixed;inset:auto 0 calc(68px + env(safe-area-inset-bottom));margin:0;width:100%;max-width:none;max-height:70dvh;border-radius:20px 20px 0 0;box-sizing:border-box}
+ .open-tabs-dialog .finder-row{padding:8px;border-radius:12px;border:1px solid var(--line);background:var(--surface)}
+ .private-primary:has(+.private-inspector:not([hidden])){overflow:hidden}
+}
+@keyframes phone-dropdown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){#phone-shell .teacher-sidebar{transition:none}#phone-course-options{animation:none}}
+
+@media(max-width:700px){#phone-shell #sidebar-collapse{display:none}}
+
+@media(max-width:700px){
+ .pilot-main{height:calc(var(--phone-viewport,100dvh) - 59px - env(safe-area-inset-top) - 68px - env(safe-area-inset-bottom))}
+ .pilot-header-inner{height:calc(59px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);box-sizing:border-box}
+ #phone-shell{top:calc(59px + env(safe-area-inset-top));bottom:auto;height:calc(var(--phone-viewport,100dvh) - 59px - env(safe-area-inset-top))}
+ #phone-shell .open-tabs-dialog{pointer-events:auto;inset:auto 0 calc(68px + env(safe-area-inset-bottom));bottom:calc(68px + env(safe-area-inset-bottom));position:absolute;max-height:calc(100% - 80px - env(safe-area-inset-bottom));background:var(--canvas);color:var(--ink);border:1px solid var(--line);padding:16px;overflow:auto}
+}
+
+@media(max-width:700px){#phone-shell #saved-courses{max-height:none;overflow:visible;min-height:0}.phone-toolbar button:disabled{opacity:.4}}
+
+@media(max-width:700px){#phone-shell [data-finder-results]{max-height:none;overflow:visible}#phone-shell .private-nav button{font-size:.95rem;min-height:48px}}
+
+@media(max-width:700px){#phone-shell .courses-heading{display:flex}#phone-shell .courses-heading h2{display:none}#phone-shell [data-create-course]::after{content:' Create course';font-size:14px}}
+
+@media(max-width:700px){#phone-shell .course-icon-edit{display:block;width:44px;flex:none;min-height:44px}}
+
+@media(max-width:700px){#workspace-settings .legacy-demonstration{display:block;margin:16px 0}}
+@media(max-width:700px){
+ .phone-navigation-open #account-home{overflow:hidden}
+ body:has(#phone-shell .open-tabs-dialog[open]) :is(.private-primary,#private-home,#account-home){overflow:hidden}
+}
+@media(max-width:700px){
+ .private-inspector{top:calc(59px + env(safe-area-inset-top));bottom:auto;height:calc(var(--phone-viewport,100dvh) - 59px - env(safe-area-inset-top) - 68px - env(safe-area-inset-bottom));box-sizing:border-box}
+}
+
+@media(max-width:700px){#phone-shell{z-index:40}}

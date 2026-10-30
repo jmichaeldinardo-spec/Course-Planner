@@ -43,6 +43,21 @@ const check=(name,condition)=>{checks.push({name,passed:!!condition});assert.ok(
 // exercising existing behaviors. The dedicated UX scenario checks their defaults.
 async function expose(locator){
  const page=locator.page();
+ if(await locator.count()&&await page.locator('#workspace-settings').evaluate(e=>e.open)&&!await locator.first().evaluate(e=>!!e.closest('#workspace-settings')))await page.locator('[data-settings-close]').click();
+ if(await page.locator('#phone-navigate').isVisible()&&await locator.count()){
+  const target=await locator.first().evaluate(e=>({aside:!!e.closest('.teacher-sidebar'),course:e.dataset.privateOpen,id:e.dataset.tabSelect,close:e.dataset.tabClose,newView:e.hasAttribute('data-tab-new'),finder:e.hasAttribute('data-tab-finder'),history:e.dataset.tabHistory,courseOption:!!e.closest('#saved-courses'),icon:e.dataset.courseIcon}));
+  if(!target.aside&&await page.locator('#phone-navigate').getAttribute('aria-expanded')==='true')await page.locator('#phone-navigate').click();
+  if(target.newView){await page.locator('#phone-new').click();return false;}
+  if(target.history){await page.locator('#phone-views').click();await page.locator('[data-finder-history="'+target.history+'"]').click();return false;}
+  if(target.finder||target.id||target.close){await page.locator('#phone-views').click();if(target.id)await page.locator('[data-finder-tab="'+target.id+'"]').click();if(target.close)await page.locator('[data-finder-close-tab="'+target.close+'"]').click();return false;}
+  if(String(locator).includes('#sidebar-collapse')){await page.locator('#phone-navigate').click();return false;}
+  if(target.aside){if(await page.locator('#phone-navigate').getAttribute('aria-expanded')!=='true')await page.locator('#phone-navigate').click();
+   if(target.icon&&target.icon===await page.locator('#workspace-course-name').getAttribute('data-course-id')){await page.locator('#phone-current-icon').click();return false;}
+   if(target.courseOption&&!target.course&&await page.locator('#phone-course-toggle').getAttribute('aria-expanded')!=='true')await page.locator('#phone-course-toggle').click();
+   if(target.course){const current=await page.locator('#workspace-course-name').getAttribute('data-course-id');if(current===target.course){await page.locator('#phone-continue').click();return false;}if(await page.locator('#phone-course-toggle').getAttribute('aria-expanded')!=='true')await page.locator('#phone-course-toggle').click();}
+  }
+ }
+
  if(await locator.count()&&!await locator.first().isVisible()){
   const id=await locator.first().getAttribute('data-tab-select')||await locator.first().getAttribute('data-tab-close');
   if(id){await page.locator('[data-tab-finder]').click();if(await locator.first().getAttribute('data-tab-close')){await page.locator('[data-finder-close-tab="'+id+'"]').click();return false;}await page.locator('[data-finder-tab="'+id+'"]').click();}
@@ -51,11 +66,11 @@ async function expose(locator){
  if(await locator.count()){
   const settings=await locator.first().evaluate(e=>!!e.closest('#workspace-settings'));
   const dialog=page.locator('#workspace-settings');
-  if(settings&&!await dialog.evaluate(e=>e.open)){if(await page.locator('.private-primary').count()&&await page.locator('.private-primary').evaluate(e=>e.inert))await page.locator('[data-inspector-close]').click();await page.locator('[data-workspace-settings]').click();}
+  if(settings&&!await dialog.evaluate(e=>e.open)){if(await page.locator('.private-primary').count()&&await page.locator('.private-primary').evaluate(e=>e.inert))await page.locator('[data-inspector-close]').click();await click(page.locator('[data-workspace-settings]'));}
   else if(!settings&&await dialog.evaluate(e=>e.open))await page.locator('[data-settings-close]').click();
   const inside=await locator.first().evaluate(e=>!!e.closest('.private-inspector'));
   if(inside&&!await page.locator('.private-inspector').isVisible())await page.locator('[data-inspector-open]').click();
-  if(!inside&&await page.locator('.private-primary').count()&&await page.locator('.private-primary').evaluate(e=>e.inert)){await page.locator('[data-inspector-close]').click();if(await page.locator('.private-primary').evaluate(e=>e.inert))return false;}
+  if(!inside&&!await locator.first().evaluate(e=>!!e.closest('dialog[open],#phone-shell .teacher-sidebar'))&&await page.locator('.private-primary').count()&&await page.locator('.private-primary').evaluate(e=>e.inert)){await page.locator('[data-inspector-close]').click();if(await page.locator('.private-primary').evaluate(e=>e.inert))return false;}
  }
  const ancestors=locator.first().locator('xpath=ancestor::details');
  const count=await ancestors.count()-(await locator.first().evaluate(e=>e.tagName==='SUMMARY')?1:0);
@@ -86,7 +101,7 @@ async function verifyPreviewInterface(page,width,prefix,fixture){
  const second=result.locator(':scope > .event-more > [data-preview-row="'+fixture.lessons[1].id+'"]');
  check(prefix+' BEFORE and PROPOSED dates visible',(await second.innerText()).includes('2026-09-15')&&(await second.innerText()).includes('2026-09-16'));
  check(prefix+' no scheduling apply action',await result.getByRole('button',{name:/^(Apply|Save|Confirm)$/}).count()===0);
- check(prefix+' collapsed course icon remains visible',await page.locator('#saved-courses .course-icon').first().isVisible());
+ if(width<=700){await page.locator('#phone-navigate').click();check(prefix+' current course remains accessible in Navigate',await page.locator('#phone-course-toggle').isVisible());await page.locator('#phone-navigate').click();}else check(prefix+' collapsed course icon remains visible',await page.locator('#saved-courses .course-icon').first().isVisible());
  check(prefix+' no horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await result.screenshot({path:resolve(out,prefix+'-closure-before-proposed.png')});
  await control(page.locator('[data-event-preview-form] [name="title"]'),'fill','Changed title');
@@ -117,9 +132,9 @@ async function verifyPreviewInterface(page,width,prefix,fixture){
  await result.screenshot({path:resolve(out,prefix+'-protected-conflict.png')});
  await click(result.locator(':scope > .event-more > [data-preview-row] [data-private-lesson]').first());
  check(prefix+' preview uses shared lesson record',await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===fixture.lessons[1].id);
- await control(page.locator('[name="objective"]'),'fill','Unsaved authoring guard probe');await click(page.locator('[data-private-tab="units"]'));await page.locator('[data-unsaved-choice="cancel"]').click();
+ await control(page.locator('[name="objective"]'),'fill','Unsaved authoring guard probe');await click(page.locator('[data-private-tab="units"]'));await click(page.locator('[data-unsaved-choice="cancel"]'));
  check(prefix+' authoring draft guard survives previews',await page.locator('[name="objective"]').inputValue()==='Unsaved authoring guard probe');
- await click(page.locator('[data-private-tab="sequence"]'));await page.locator('[data-unsaved-choice="discard"]').click();await click(page.locator('[data-private-tab="calendar"]'));
+ await click(page.locator('[data-private-tab="sequence"]'));await click(page.locator('[data-unsaved-choice="discard"]'));await click(page.locator('[data-private-tab="calendar"]'));
  await page.evaluate(({eventId,courseId})=>{window.testDb.lessons[2].protected_pin_date=null;window.testDb.lessons[2].revision++;window.testDb.calendar_exceptions.push({id:eventId,course_id:courseId,date:'2026-09-18',title:'Fictional replacement event',event_type:'Alternate activity',effect:'Replace Lesson',revision:1});},{eventId:previewId(30),courseId:fixture.course.id});
  await click(page.locator('[data-private-reload]'));await details(page);await click(page.locator('.event-list summary'));await click(page.locator('.event-list [data-event-open="'+previewId(30)+'"]'));
  check(prefix+' Change event retains raw title',await page.locator('[data-event-preview-form] [name="title"]').inputValue()==='Fictional replacement event');
@@ -299,52 +314,52 @@ async function verifyUXStructure(page,width,prefix,fixture){
  check(prefix+' eight persistent course destinations',await page.locator('#workspace-navigation [data-private-tab]').count()===8);
  check(prefix+' calendar quiet primary workspace',await page.locator('.private-primary [aria-label="Read-only schedule diagnostics"],[data-build-result]').count()===0);
  check(prefix+' Inspector defaults closed on desktop and mobile',await page.locator('.private-inspector').isHidden());
- if(await page.locator('.private-primary').evaluate(e=>e.inert))await page.locator('[data-inspector-close]').click();await page.locator('#sidebar-collapse').click();check(prefix+' sidebar collapses with accessible destinations',await page.locator('body').evaluate((e,width)=>e.classList.contains(width===390?'mobile-nav-open':'sidebar-collapsed'),width)&&await page.getByRole('button',{name:'Calendar',exact:true}).count()===1);await page.locator('#sidebar-collapse').click();
- await page.locator('[data-workspace-settings]').click();check(prefix+' settings dialog opens',await page.locator('#workspace-settings').evaluate(e=>e.open));
+ if(await page.locator('.private-primary').evaluate(e=>e.inert))await click(page.locator('[data-inspector-close]'));await click(page.locator('#sidebar-collapse'));check(prefix+' sidebar collapses with accessible destinations',await page.locator('body').evaluate((e,width)=>e.classList.contains(width===390?'mobile-nav-open':'sidebar-collapsed'),width)&&await page.getByRole('button',{name:'Calendar',exact:true}).count()===1);await click(page.locator('#sidebar-collapse'));
+ await click(page.locator('[data-workspace-settings]'));check(prefix+' settings dialog opens',await page.locator('#workspace-settings').evaluate(e=>e.open));
  await page.locator('[data-appearance-theme]').selectOption('light');await page.locator('[data-appearance-accent]').selectOption('blue');check(prefix+' local light and accent selection',await page.locator('body').evaluate(e=>e.dataset.theme==='light'&&e.dataset.accent==='blue'));
- await page.screenshot({path:resolve(out,prefix+'-light-settings.png')});await page.locator('[data-appearance-theme]').selectOption('dark');await page.locator('[data-settings-close]').click();
+ await page.screenshot({path:resolve(out,prefix+'-light-settings.png')});await page.locator('[data-appearance-theme]').selectOption('dark');await click(page.locator('[data-settings-close]'));
  check(prefix+' canonical account forms still present exactly once',await page.locator('#auth-form').count()===1&&await page.locator('#restore-form').count()===1&&await page.locator('#backup-all').count()===1);
- await page.locator('[data-private-calendar-day="2026-09-03"]').click();
+ await click(page.locator('[data-private-calendar-day="2026-09-03"]'));
  check(prefix+' date opens inspector without replacing calendar',await page.locator('.private-inspector').isVisible()&&await page.locator('.saved-month').count()===1);
- if(width===390){check(prefix+' mobile detail is accessible modal',await page.locator('.private-inspector').getAttribute('aria-modal')==='true');await page.locator('[data-inspector-close]').click();check(prefix+' mobile dismiss returns original date focus',await page.locator('[data-private-calendar-day="2026-09-03"]').evaluate(e=>e===document.activeElement));}
- else{await page.locator('.inspector-size summary').click();await page.locator('[data-inspector-width]').fill('440');await page.locator('[data-inspector-width]').dispatchEvent('change');check(prefix+' inspector width adjustable',await page.locator('.private-frame').evaluate(e=>e.style.getPropertyValue('--inspector-width')==='440px'));await page.locator('[data-inspector-close]').click();}
- await page.locator('[data-build-sample-open]').click();
+ if(width===390){check(prefix+' mobile detail is accessible modal',await page.locator('.private-inspector').getAttribute('aria-modal')==='true');await click(page.locator('[data-inspector-close]'));check(prefix+' mobile dismiss returns original date focus',await page.locator('[data-private-calendar-day="2026-09-03"]').evaluate(e=>e===document.activeElement));}
+ else{await click(page.locator('.inspector-size summary'));await page.locator('[data-inspector-width]').fill('440');await page.locator('[data-inspector-width]').dispatchEvent('change');check(prefix+' inspector width adjustable',await page.locator('.private-frame').evaluate(e=>e.style.getPropertyValue('--inspector-width')==='440px'));await click(page.locator('[data-inspector-close]'));}
+ await click(page.locator('[data-build-sample-open]'));
  check(prefix+' sample remains clearly separate',(await page.locator('.sample-context').innerText()).includes('NOT your saved course'));
  check(prefix+' focused Build panel in inspector',await page.locator('#build-config-title').evaluate(e=>e===document.activeElement)&&await page.locator('.private-primary [data-build-schedule-form]').count()===0);
  // Dismiss config, retain it locally, and record the unchanged central grid.
- await page.locator('[data-inspector-close]').click();
+ await click(page.locator('[data-inspector-close]'));
  await page.evaluate(()=>{window.uxGrid=document.querySelector('.saved-month');window.uxDate=document.querySelector('[data-private-calendar-day="2026-09-03"]');window.uxMain=document.querySelector('.private-primary');window.uxMain.scrollTop=140;window.uxScroll=window.uxMain.scrollTop;window.uxWindowScroll=scrollY;});
- await page.locator('[data-outlook-open]').click();await page.evaluate(()=>{window.uxGridTop=document.querySelector('.saved-month').getBoundingClientRect().top;});await page.locator('[data-outlook-use-focus]').click();await page.locator('[data-build-schedule-form] button[type="submit"]').click();
+ await click(page.locator('[data-outlook-open]'));await page.evaluate(()=>{window.uxGridTop=document.querySelector('.saved-month').getBoundingClientRect().top;});await click(page.locator('[data-outlook-use-focus]'));await click(page.locator('[data-build-schedule-form] button[type="submit"]'));
  check(prefix+' preview retains calendar vertical position',await page.evaluate(()=>Math.abs(document.querySelector('.saved-month').getBoundingClientRect().top-window.uxGridTop)<2));
  check(prefix+' ordinary-language positive outcome',(await page.locator('#build-schedule-title').innerText()).includes('8 lessons placed; 0 need attention'));
  check(prefix+' More details collapsed by default',await page.locator('.outlook-more').evaluate(e=>!e.open));
  check(prefix+' preview retains actual grid and date nodes',await page.evaluate(()=>window.uxGrid===document.querySelector('.saved-month')&&window.uxDate===document.querySelector('[data-private-calendar-day="2026-09-03"]')));
  check(prefix+' preview retains central and document scroll',await page.evaluate(()=>Math.abs(window.uxMain.scrollTop-window.uxScroll)<2&&scrollY===window.uxWindowScroll));
  check(prefix+' Build does not change selected date',await page.locator('[data-private-calendar-day="2026-09-01"]').getAttribute('aria-pressed')==='true');
- await page.locator('.outlook-more>summary').click();check(prefix+' detailed capacity and all comparisons available',(await page.locator('.outlook-more').innerText()).includes('11 hypothetical day assignments')&&await page.locator('[data-build-row]').count()===12);
+ await click(page.locator('.outlook-more>summary'));check(prefix+' detailed capacity and all comparisons available',(await page.locator('.outlook-more').innerText()).includes('11 hypothetical day assignments')&&await page.locator('[data-build-row]').count()===12);
  await page.screenshot({path:resolve(out,prefix+'-build-inspector.png')});
- await page.locator('[data-inspector-close]').click();check(prefix+' hiding inspector retains overlay',await page.locator('.saved-month [data-tentative-placement]').count()===7);
- await page.locator('.outlook-milestones>summary').click();check(prefix+' distant estimated milestone available',(await page.locator('.outlook-milestones').innerText()).includes('2026-10-19 → 2026-10-23'));
- await page.locator('[data-private-calendar-day="2026-09-03"]').click();check(prefix+' same grid survives selecting tentative day',await page.evaluate(()=>window.uxGrid===document.querySelector('.saved-month')));
- await page.locator('#saved-day-details [data-private-lesson="sample-lesson-3"]').click();check(prefix+' same-ID read-only lesson inspector',(await page.locator('.build-sample-lesson').innerText()).includes('sample-lesson-3')&&await page.locator('[data-private-save]').count()===0);
- await page.locator('[data-inspector-close]').click();await page.locator('[data-private-calendar-period="1"]').click();await page.locator('[data-private-calendar-day="2026-10-19"]').click();await page.locator('[data-inspector-close]').click();check(prefix+' explicit October focus shows distant daily proposals',await page.locator('.saved-month [data-tentative-placement]').count()===4);
- await page.locator('[data-outlook-open]').click();await page.locator('[data-outlook-close]').last().click();check(prefix+' closing preview restores prior September selection',(await page.locator('.saved-calendar-toolbar h3').innerText()).includes('September')&&await page.locator('[data-private-calendar-day="2026-09-01"]').getAttribute('aria-pressed')==='true'&&await page.locator('[data-tentative-placement]').count()===0);
- await page.locator('[data-build-sample-return]').click();
- await page.locator('[data-outlook-open]').click();await page.locator('[data-outlook-use-focus]').click();await page.locator('[data-build-schedule-form] button[type="submit"]').click();check(prefix+' complete saved baseline requires no new placements',(await page.locator('#build-schedule-title').innerText()).includes('No new placements needed'));await page.locator('[data-inspector-close]').click();
- await page.locator('[data-private-calendar-day="2026-09-03"]').click();const shared=fixture.lessons.find(l=>l.scheduled_dates.includes('2026-09-03'));
- await page.locator('#saved-day-details [data-private-lesson="'+shared.id+'"]').click();check(prefix+' real lesson editor keeps active calendar',await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===shared.id&&await page.locator('.saved-month').count()===1&&await page.locator('[data-private-tab="calendar"]').getAttribute('aria-pressed')==='true');
+ await click(page.locator('[data-inspector-close]'));check(prefix+' hiding inspector retains overlay',await page.locator('.saved-month [data-tentative-placement]').count()===7);
+ await click(page.locator('.outlook-milestones>summary'));check(prefix+' distant estimated milestone available',(await page.locator('.outlook-milestones').innerText()).includes('2026-10-19 → 2026-10-23'));
+ await click(page.locator('[data-private-calendar-day="2026-09-03"]'));check(prefix+' same grid survives selecting tentative day',await page.evaluate(()=>window.uxGrid===document.querySelector('.saved-month')));
+ await click(page.locator('#saved-day-details [data-private-lesson="sample-lesson-3"]'));check(prefix+' same-ID read-only lesson inspector',(await page.locator('.build-sample-lesson').innerText()).includes('sample-lesson-3')&&await page.locator('[data-private-save]').count()===0);
+ await click(page.locator('[data-inspector-close]'));await click(page.locator('[data-private-calendar-period="1"]'));await click(page.locator('[data-private-calendar-day="2026-10-19"]'));await click(page.locator('[data-inspector-close]'));check(prefix+' explicit October focus shows distant daily proposals',await page.locator('.saved-month [data-tentative-placement]').count()===4);
+ await click(page.locator('[data-outlook-open]'));await click(page.locator('[data-outlook-close]').last());check(prefix+' closing preview restores prior September selection',(await page.locator('.saved-calendar-toolbar h3').innerText()).includes('September')&&await page.locator('[data-private-calendar-day="2026-09-01"]').getAttribute('aria-pressed')==='true'&&await page.locator('[data-tentative-placement]').count()===0);
+ await click(page.locator('[data-build-sample-return]'));
+ await click(page.locator('[data-outlook-open]'));await click(page.locator('[data-outlook-use-focus]'));await click(page.locator('[data-build-schedule-form] button[type="submit"]'));check(prefix+' complete saved baseline requires no new placements',(await page.locator('#build-schedule-title').innerText()).includes('No new placements needed'));await click(page.locator('[data-inspector-close]'));
+ await click(page.locator('[data-private-calendar-day="2026-09-03"]'));const shared=fixture.lessons.find(l=>l.scheduled_dates.includes('2026-09-03'));
+ await click(page.locator('#saved-day-details [data-private-lesson="'+shared.id+'"]'));check(prefix+' real lesson editor keeps active calendar',await page.locator('[data-private-save="lessons"]').getAttribute('data-id')===shared.id&&await page.locator('.saved-month').count()===1&&await page.locator('[data-private-tab="calendar"]').getAttribute('aria-pressed')==='true');
  await page.locator('[name="objective"]').fill('Fictional unsaved UX draft');
- if(width===1440){await page.locator('.calendar-options>details>summary').click();await page.locator('[data-outlook-weeks]').selectOption('6');check(prefix+' display lens preserves dirty lesson input',await page.locator('[name="objective"]').inputValue()==='Fictional unsaved UX draft');}
+ if(width===1440){await click(page.locator('.calendar-options>details>summary'));await page.locator('[data-outlook-weeks]').selectOption('6');check(prefix+' display lens preserves dirty lesson input',await page.locator('[name="objective"]').inputValue()==='Fictional unsaved UX draft');}
  await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await page.waitForFunction(()=>document.getElementById('storage-status').textContent.startsWith('1 saved course'));
  check(prefix+' auth refresh preserves inspector authoring draft',await page.locator('[name="objective"]').inputValue()==='Fictional unsaved UX draft');
  await page.locator('[name="objective"]').press('Escape');check(prefix+' Escape hides details and preserves unsaved authoring',await page.locator('[name="objective"]').inputValue()==='Fictional unsaved UX draft'&&await page.locator('.private-inspector').isHidden());
- await page.locator('[data-private-tab="units"]').click();await page.locator('[data-unsaved-choice="discard"]').click();await page.locator('.workspace-unit-list').waitFor();check(prefix+' unit directory remains available',await page.locator('.workspace-unit-list [data-private-unit]').count()===5);await page.locator('[data-private-unit]').first().click();check(prefix+' unit editor occupies the central tab',await page.locator('.private-primary [data-private-save="units"]').count()===1&&await page.locator('.private-inspector [data-private-save]').count()===0);if(await page.locator('.private-inspector').isVisible())await page.locator('[data-inspector-close]').click();
- await page.locator('[data-private-tab="lessons"]').click();check(prefix+' searchable lesson directory retains every canonical record',await page.locator('[data-lesson-directory-results] [data-private-lesson]').count()===80);await page.locator('[data-private-tab="sequence"]').click();check(prefix+' sequence workspace remains available',await page.locator('.private-header h1').innerText()==='Course Sequence');
- await page.locator('[data-private-tab="calendar"]').click();await page.screenshot({path:resolve(out,prefix+'-quiet-calendar.png')});check(prefix+' no page overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await click(page.locator('[data-private-tab="units"]'));await click(page.locator('[data-unsaved-choice="discard"]'));await page.locator('.workspace-unit-list').waitFor();check(prefix+' unit directory remains available',await page.locator('.workspace-unit-list [data-private-unit]').count()===5);await click(page.locator('[data-private-unit]').first());check(prefix+' unit editor occupies the central tab',await page.locator('.private-primary [data-private-save="units"]').count()===1&&await page.locator('.private-inspector [data-private-save]').count()===0);if(await page.locator('.private-inspector').isVisible())await click(page.locator('[data-inspector-close]'));
+ await click(page.locator('[data-private-tab="lessons"]'));check(prefix+' searchable lesson directory retains every canonical record',await page.locator('[data-lesson-directory-results] [data-private-lesson]').count()===80);await click(page.locator('[data-private-tab="sequence"]'));check(prefix+' sequence workspace remains available',await page.locator('.private-header h1').innerText()==='Course Sequence');
+ await click(page.locator('[data-private-tab="calendar"]'));await page.screenshot({path:resolve(out,prefix+'-quiet-calendar.png')});check(prefix+' no page overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  check(prefix+' all UX actions zero writes and unchanged owner records',await page.evaluate(before=>window.testWrites.length===0&&JSON.stringify(window.testDb)===before,before));
- await page.locator('.legacy-demonstration>summary').click();check(prefix+' illustrative demo remains accessible separately',await page.locator('#application .cp-lesson-row').count()===10);await page.locator('#application [data-workspace="calendar"]').click();check(prefix+' illustrative calendar still works',await page.locator('#workspace-label').innerText()==='Calendar');await page.locator('.legacy-demonstration>summary').click();
+ await click(page.locator('.legacy-demonstration>summary'));check(prefix+' illustrative demo remains accessible separately',await page.locator('#application .cp-lesson-row').count()===10);await click(page.locator('#application [data-workspace="calendar"]'));check(prefix+' illustrative calendar still works',await page.locator('#workspace-label').innerText()==='Calendar');await click(page.locator('.legacy-demonstration>summary'));
 
- await page.locator('[data-workspace-settings]').click();await page.evaluate(()=>{window.testClient.auth.getSession=async()=>({data:{session:null}});});await page.locator('#auth-signout').click();await page.locator('#account-home #auth-form').waitFor({state:'visible'});
+ await click(page.locator('[data-workspace-settings]'));await page.evaluate(()=>{window.testClient.auth.getSession=async()=>({data:{session:null}});});await click(page.locator('#auth-signout'));await page.locator('#account-home #auth-form').waitFor({state:'visible'});
  check(prefix+' sign-out returns to login without a trapped settings modal',await page.locator('#private-workspace').evaluate(e=>e.hidden)&&await page.locator('#workspace-settings').evaluate(e=>!e.open));
  check(prefix+' sign-out clears navigation and sample state',await page.locator('#workspace-navigation [data-private-tab]:not(:disabled)').count()===0&&await page.locator('.sample-context').count()===0);
 
@@ -362,63 +377,63 @@ async function verifyHomeNavigation(page,width,fixture){
  if(fixture.empty){
   check(prefix+' empty account offers create without broken resume',!await page.locator('[data-resume-workspace]').isVisible()&&(await page.locator('#home-courses').innerText()).includes('No courses'));
   await page.screenshot({path:resolve(out,prefix+'-home.png')});
-  await page.locator('.courses-heading [data-create-course]').click();
+  await click(page.locator('.courses-heading [data-create-course]'));
   check(prefix+' plus focuses existing secure create form',await page.locator('#course-name').evaluate(e=>e===document.activeElement)&&await page.evaluate(()=>window.testWrites.length===0));
-  await page.locator('#course-name').fill('Fictional new course');await page.locator('#course-form button').click();await page.locator('.private-header h2').filter({hasText:'Fictional new course'}).waitFor();
+  await page.locator('#course-name').fill('Fictional new course');await click(page.locator('#course-form button'));await page.locator('.private-header h2').filter({hasText:'Fictional new course'}).waitFor();
   check(prefix+' creation uses owner-scoped existing flow',await page.evaluate(()=>window.testWrites.length===1&&window.testDb.courses[0].owner_id===window.testOwner));
-  await page.locator('[data-global-home]').click();check(prefix+' first course now resumable',await page.locator('[data-resume-workspace]').isVisible());return;
+  await click(page.locator('[data-global-home]'));check(prefix+' first course now resumable',await page.locator('[data-resume-workspace]').isVisible());return;
  }
- await page.locator('[data-resume-workspace]').click();await page.locator('[data-private-tab="calendar"]').click();
- if(await page.locator('.private-primary').evaluate(e=>e.inert))await page.locator('[data-inspector-close]').click();
+ await click(page.locator('[data-resume-workspace]'));await click(page.locator('[data-private-tab="calendar"]'));
+ if(await page.locator('.private-primary').evaluate(e=>e.inert))await click(page.locator('[data-inspector-close]'));
  await page.evaluate(()=>{window.homeGrid=document.querySelector('.saved-month');document.querySelector('.private-primary').scrollTop=120;window.homeScroll=document.querySelector('.private-primary').scrollTop;});
- await page.locator('[data-global-home]').click();await page.screenshot({path:resolve(out,prefix+'-home.png')});
- await page.locator('[data-resume-workspace]').click();check(prefix+' Resume preserves calendar nodes and scroll',await page.evaluate(()=>window.homeGrid===document.querySelector('.saved-month')&&document.querySelector('.private-primary').scrollTop===window.homeScroll));
- await page.locator('[data-private-tab="overview"]').click();check(prefix+' derived Overview is distinct from Sequence',await page.locator('.private-header h1').innerText()==='Course Overview'&&await page.locator('.overview-counts dd').first().innerText()==='5'&&await page.locator('.private-table').count()===0);await page.screenshot({path:resolve(out,prefix+'-overview.png')});
- for(const key of ['resources','templates','archive']){await page.locator('#workspace-navigation [data-private-tab="'+key+'"]').click();check(prefix+' '+key+' honest placeholder',(await page.locator('.workspace-placeholder').innerText()).includes('Under development'));}
- await page.locator('[data-private-tab="lessons"]').click();await page.locator('[data-private-lesson]').first().click();await page.locator('[name="objective"]').fill('Unsaved Home navigation draft');
+ await click(page.locator('[data-global-home]'));await page.screenshot({path:resolve(out,prefix+'-home.png')});
+ await click(page.locator('[data-resume-workspace]'));check(prefix+' Resume preserves calendar nodes and scroll',await page.evaluate(()=>window.homeGrid===document.querySelector('.saved-month')&&document.querySelector('.private-primary').scrollTop===window.homeScroll));
+ await click(page.locator('[data-private-tab="overview"]'));check(prefix+' derived Overview is distinct from Sequence',await page.locator('.private-header h1').innerText()==='Course Overview'&&await page.locator('.overview-counts dd').first().innerText()==='5'&&await page.locator('.private-table').count()===0);await page.screenshot({path:resolve(out,prefix+'-overview.png')});
+ for(const key of ['resources','templates','archive']){await click(page.locator('#workspace-navigation [data-private-tab="'+key+'"]'));check(prefix+' '+key+' honest placeholder',(await page.locator('.workspace-placeholder').innerText()).includes('Under development'));}
+ await click(page.locator('[data-private-tab="lessons"]'));await click(page.locator('[data-private-lesson]').first());await page.locator('[name="objective"]').fill('Unsaved Home navigation draft');
  await page.evaluate(()=>{window.homeEditor=document.querySelector('[name="objective"]');});
  // Escape can hide contextual details without discarding the central editor.
  if(width===390){await page.locator('[name="objective"]').press('Escape');check(prefix+' mobile dismissal preserves central draft',await page.locator('[name="objective"]').inputValue()==='Unsaved Home navigation draft');}
  await click(page.locator('[data-global-home]'));
- check(prefix+' Home releases hidden inspector modality',await page.locator('.teacher-sidebar').evaluate(e=>!e.inert));
+ check(prefix+' Home releases hidden inspector modality',width<=700?await page.locator('.teacher-workspace').evaluate(e=>!e.inert)&&await page.locator('.teacher-sidebar').evaluate(e=>e.inert):await page.locator('.teacher-sidebar').evaluate(e=>!e.inert));
  await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await page.waitForFunction(()=>document.getElementById('storage-status').textContent.startsWith('1 saved course'));
- await page.locator('[data-resume-workspace]').click();check(prefix+' Home and auth refresh preserve exact dirty input',await page.evaluate(()=>document.querySelector('[name="objective"]')===window.homeEditor&&window.homeEditor.value==='Unsaved Home navigation draft'));
- await page.evaluate(()=>document.querySelector('[data-global-home]').click());
+ await click(page.locator('[data-resume-workspace]'));check(prefix+' Home and auth refresh preserve exact dirty input',await page.evaluate(()=>document.querySelector('[name="objective"]')===window.homeEditor&&window.homeEditor.value==='Unsaved Home navigation draft'));
+ await click(page.locator('[data-global-home]'));
  const second='10000000-0000-4000-8000-000000000091';
  await page.evaluate(({second})=>{window.testDb.courses.push({...window.testDb.courses[0],id:second,name:'Fictional second course'});window.testAuthEvent('TOKEN_REFRESHED');},{second});
  await page.waitForFunction(()=>document.querySelectorAll('#saved-courses [data-private-open]').length===2);
- await page.locator('#home-courses [data-private-open="'+second+'"]').click();await page.locator('.private-header h2').filter({hasText:'Fictional second course'}).waitFor();
+ await click(page.locator('#home-courses [data-private-open="'+second+'"]'));await page.locator('.private-header h2').filter({hasText:'Fictional second course'}).waitFor();
  check(prefix+' course switch preserves background dirty guard',await page.evaluate(async()=> (await import('./private-workspace.js')).isPrivateWorkspaceDirty()));
- await page.locator('[data-private-tab="overview"]').click();await page.locator('[data-global-home]').click();
- await page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]').click();
+ await click(page.locator('[data-private-tab="overview"]'));await click(page.locator('[data-global-home]'));
+ await click(page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]'));
  check(prefix+' course restores actual dirty editor node',await page.evaluate(()=>document.querySelector('[name="objective"]')===window.homeEditor&&window.homeEditor.value==='Unsaved Home navigation draft'));
- await page.evaluate(()=>document.querySelector('[data-global-home]').click());
- await page.locator('#home-courses [data-private-open="'+second+'"]').click();check(prefix+' second course restores independent Overview',await page.locator('.private-header h1').innerText()==='Course Overview');
- await page.locator('[data-global-home]').click();await page.locator('#saved-courses [data-course-icon="'+second+'"]').click();await page.getByRole('button',{name:'Choose icon 4',exact:true}).click();
+ await click(page.locator('[data-global-home]'));
+ await click(page.locator('#home-courses [data-private-open="'+second+'"]'));check(prefix+' second course restores independent Overview',await page.locator('.private-header h1').innerText()==='Course Overview');
+ await click(page.locator('[data-global-home]'));await click(page.locator('#saved-courses [data-course-icon="'+second+'"]'));await page.getByRole('button',{name:'Choose icon 4',exact:true}).click();
  check(prefix+' icon changes independently in both course lists',await page.locator('#home-courses [data-private-open="'+second+'"] .course-icon').innerText()==='✦');
  check(prefix+' all navigation and icons avoid record mutation',await page.evaluate(before=>{const original=JSON.parse(before);const current=structuredClone(window.testDb);current.courses=current.courses.slice(0,1);return JSON.stringify(current)===JSON.stringify(original)&&window.testWrites.length===0;},before));
  // Failed saves and unauthorized target loads must keep the current draft.
- await page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]').click();
+ await click(page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]'));
  const denied=await page.evaluate(async()=> (await import('./private-workspace.js')).openPrivateCourse(window.testClient,{id:window.testOwner},'30000000-0000-4000-8000-000000000001',{preserveContext:true}));
  check(prefix+' denied target retains current draft and course',!denied&&await page.locator('[name="objective"]').inputValue()==='Unsaved Home navigation draft');
  await page.evaluate(()=>{window.testHoldWrites=true;window.rejectWrites=true;});
- await page.locator('[data-private-save="lessons"] button[type="submit"]').click();
+ await click(page.locator('[data-private-save="lessons"] button[type="submit"]'));
  await page.waitForFunction(()=>!!window.testReleaseWrite);
- await click(page.locator('[data-global-home]'));await page.locator('#home-courses [data-private-open="'+second+'"]').click();
+ await click(page.locator('[data-global-home]'));await click(page.locator('#home-courses [data-private-open="'+second+'"]'));
  check(prefix+' pending save blocks course switch',await page.evaluate(async()=> (await import('./private-workspace.js')).activePrivateCourseId())===fixture.course.id);
  await page.evaluate(()=>{window.testHoldWrites=false;window.testReleaseWrite();});
  await page.waitForFunction(()=>document.getElementById('private-status').textContent.includes('Save failed'));
- await page.locator('[data-resume-workspace]').click();check(prefix+' failed save keeps exact draft',await page.locator('[name="objective"]').inputValue()==='Unsaved Home navigation draft');
+ await click(page.locator('[data-resume-workspace]'));check(prefix+' failed save keeps exact draft',await page.locator('[name="objective"]').inputValue()==='Unsaved Home navigation draft');
  await page.evaluate(()=>{window.rejectWrites=false;});await click(page.locator('[data-global-home]'));
- const toggle=page.locator('#sidebar-collapse'),box=await toggle.boundingBox();await toggle.click();const collapsed=await toggle.boundingBox();check(prefix+' toggle keeps exact position',Math.abs(box.x-collapsed.x)<1&&Math.abs(box.y-collapsed.y)<1);await toggle.click();
+ const toggle=page.locator(width<=700?'#phone-navigate':'#sidebar-collapse'),box=await toggle.boundingBox();await toggle.click();const collapsed=await toggle.boundingBox();check(prefix+' toggle keeps exact position',Math.abs(box.x-collapsed.x)<1&&Math.abs(box.y-collapsed.y)<1);await toggle.click();
  await toggle.focus();await page.keyboard.press('Enter');check(prefix+' keyboard toggle works',await toggle.getAttribute('aria-expanded')===(width===390?'true':'false'));await page.keyboard.press('Enter');
- check(prefix+' collapsed course icon remains visible',await page.locator('#saved-courses .course-icon').first().isVisible());
+ if(width<=700){await toggle.click();check(prefix+' current course remains accessible in Navigate',await page.locator('#phone-course-toggle').isVisible());await toggle.click();}else check(prefix+' collapsed course icon remains visible',await page.locator('#saved-courses .course-icon').first().isVisible());
  check(prefix+' no horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- await page.setViewportSize({width:width===390?1440:390,height:1000});await page.setViewportSize({width,height:1000});await page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]').click();
+ await page.setViewportSize({width:width===390?1440:390,height:1000});await page.setViewportSize({width,height:1000});await click(page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]'));
  check(prefix+' responsive changes retain draft',await page.locator('[name="objective"]').inputValue()==='Unsaved Home navigation draft');
- await page.evaluate(()=>document.querySelector('[data-global-home]').click());
- await page.locator('[data-workspace-settings]').click();page.once('dialog',d=>d.dismiss());await page.locator('#auth-signout').click();check(prefix+' sign-out guards background drafts',await page.locator('#workspace-settings').evaluate(e=>e.open));
- await page.evaluate(()=>{window.testSignedOut=true;});page.once('dialog',d=>d.accept());await page.locator('#auth-signout').click();await page.locator('#auth-form').waitFor({state:'visible'});
+ await click(page.locator('[data-global-home]'));
+ await click(page.locator('[data-workspace-settings]'));page.once('dialog',d=>d.dismiss());await click(page.locator('#auth-signout'));check(prefix+' sign-out guards background drafts',await page.locator('#workspace-settings').evaluate(e=>e.open));
+ await page.evaluate(()=>{window.testSignedOut=true;});page.once('dialog',d=>d.accept());await click(page.locator('#auth-signout'));await page.locator('#auth-form').waitFor({state:'visible'});
  check(prefix+' sign-out clears course and draft contexts',await page.evaluate(async()=>!(await import('./private-workspace.js')).isPrivateWorkspaceDirty())&&await page.locator('#saved-courses button').count()===0);
  await page.evaluate(()=>{window.testSignedOut=false;window.testOwner='20000000-0000-4000-8000-000000000001';window.testAuthEvent('SIGNED_IN');});await page.locator('#private-home').waitFor({state:'visible'});await page.waitForFunction(()=>document.getElementById('storage-status').textContent.startsWith('No saved courses'));
  check(prefix+' different account has no previous courses or resume',await page.locator('#home-courses [data-private-open]').count()===0&&!await page.locator('[data-resume-workspace]').isVisible());
@@ -454,16 +469,16 @@ async function verifyCourseCards(page,width,fixture){
  if(width===390){await page.setViewportSize({width:320,height:760});check(prefix+' 320px cards stay readable without overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)&&await secondCard.locator('.course-label').isVisible());await page.screenshot({path:resolve(out,prefix+'-320px-courses.png')});await page.setViewportSize({width,height:1000});}
  await secondCard.press('Enter');await page.locator('.private-header h2').filter({hasText:'Fictional Environmental Science'}).waitFor();
  check(prefix+' whole card is keyboard course entry',await secondCard.getAttribute('aria-current')==='true');
- await page.locator('[data-global-home]').click();await first.click();await page.locator('#workspace-navigation [data-private-tab="overview"]').click();
+ await click(page.locator('[data-global-home]'));await first.click();await click(page.locator('#workspace-navigation [data-private-tab="overview"]'));
  check(prefix+' Overview header uses same active counts',(await page.locator('.workspace-counts').innerText()).startsWith('4 unit(s) · 60 lesson(s)'));
  check(prefix+' Overview active totals',JSON.stringify(await page.locator('.overview-counts dd').allTextContents())===JSON.stringify(['4','60','0','60']));
  check(prefix+' Overview units exclude archived unit and its children',await page.locator('.course-overview [data-private-unit]').count()===4&&!((await page.locator('.course-overview').innerText()).includes('Fictional Unit 5')));
  check(prefix+' Overview per-unit counts exclude archived lessons',(await page.locator('.course-overview .workspace-unit-list small').allTextContents())[0].startsWith('13 lessons'));
  await page.screenshot({path:resolve(out,prefix+'-archived-overview.png')});
- await page.locator('[data-private-tab="units"]').click();check(prefix+' other planning view retains its existing unfiltered records',await page.locator('.workspace-unit-list [data-private-unit]').count()===5);
- await page.locator('[data-private-unit]').first().click();await page.locator('[name="essential_questions"]').fill('Unsaved unit question during course summary refresh');
+ await click(page.locator('[data-private-tab="units"]'));check(prefix+' other planning view retains its existing unfiltered records',await page.locator('.workspace-unit-list [data-private-unit]').count()===5);
+ await click(page.locator('[data-private-unit]').first());await page.locator('[name="essential_questions"]').fill('Unsaved unit question during course summary refresh');
  await click(page.locator('[data-global-home]'));await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await first.locator('.course-facts').filter({hasText:'4 active units · 60 active lessons'}).waitFor();
- await secondCard.click();await page.locator('[data-global-home]').click();await first.click();
+ await secondCard.click();await click(page.locator('[data-global-home]'));await first.click();
  check(prefix+' summary refresh and course switching preserve unsaved unit draft',await page.locator('[name="essential_questions"]').inputValue()==='Unsaved unit question during course summary refresh');
  check(prefix+' saved records unchanged by summaries/navigation',await page.evaluate(before=>{const current=structuredClone(window.testDb),original=JSON.parse(before);current.courses=current.courses.slice(0,1);current.units=current.units.filter(x=>x.course_id===original.courses[0].id);current.lessons=current.lessons.filter(x=>x.course_id===original.courses[0].id);return JSON.stringify(current)===JSON.stringify(original)&&window.testWrites.length===0;},before));
  await click(page.locator('[data-global-home]'));
@@ -472,7 +487,7 @@ async function verifyCourseCards(page,width,fixture){
  check(prefix+' read failure never invents zero counts',await emptyCard.locator('.course-facts').innerText()==='Summary unavailable');
  await emptyCard.click();await page.locator('.private-header h2').filter({hasText:'Fictional course — ready to plan'}).waitFor();
  check(prefix+' unavailable summary card stays a working course entry',await emptyCard.getAttribute('aria-current')==='true');
- await page.locator('[data-global-home]').click();await first.click();check(prefix+' failed summary read preserves other course draft',await page.locator('[name="essential_questions"]').inputValue()==='Unsaved unit question during course summary refresh');
+ await click(page.locator('[data-global-home]'));await first.click();check(prefix+' failed summary read preserves other course draft',await page.locator('[name="essential_questions"]').inputValue()==='Unsaved unit question during course summary refresh');
  await click(page.locator('[data-global-home]'));await page.evaluate(()=>{window.testSummaryFailure=null;});
  await page.evaluate(id=>{
   const unit='40000000-0000-4000-8000-000000000099';window.testDb.units.push({id:unit,course_id:id,title:'Large course unit',position:1,revision:1});
@@ -480,7 +495,7 @@ async function verifyCourseCards(page,width,fixture){
  },third);
  await emptyCard.locator('.course-facts').filter({hasText:'1 active unit · 1201 active lessons'}).waitFor();await emptyCard.click();
  await page.locator('.private-header h2').filter({hasText:'Fictional course — ready to plan'}).waitFor();
- await page.locator('[data-global-home]').click();await emptyCard.locator('.course-facts').filter({hasText:'1 active unit · 1201 active lessons'}).waitFor();
+ await click(page.locator('[data-global-home]'));await emptyCard.locator('.course-facts').filter({hasText:'1 active unit · 1201 active lessons'}).waitFor();
  check(prefix+' opening course preserves accurate paginated summary',await emptyCard.locator('.course-facts').innerText()==='1 active unit · 1201 active lessons');
  await first.click();await click(page.locator('[data-global-home]'));
  // Resolve an old account's summary after sign-out; it must not publish.
@@ -495,7 +510,8 @@ async function verifyDashboard(page,width,fixture){
  await page.locator('#private-home').waitFor({state:'visible'});await ready();
  const before=await page.evaluate(()=>JSON.stringify(window.testDb));
  check(prefix+' two authorized courses with no foreign account labels',!(await page.locator('#private-home').innerText()).includes('Foreign private course')&&await page.locator('#home-courses button').count()===2);
- check(prefix+' Continue replaces oversized Resume and Create stays in My Courses',await page.locator('[data-resume-workspace]').innerText().then(t=>t.includes('Continue Planning')&&!t.includes('Resume Workspace'))&&!await page.locator('#private-home [data-create-course]').isVisible()&&await page.locator('.courses-heading [data-create-course]').isVisible());
+ if(width<=700)await page.locator('#phone-navigate').click();
+ check(prefix+' Continue replaces oversized Resume and Create stays in My Courses',await page.locator('[data-resume-workspace]').innerText().then(t=>t.includes('Continue Planning')&&!t.includes('Resume Workspace'))&&!await page.locator('#private-home [data-create-course]').isVisible()&&await page.locator('.courses-heading [data-create-course]').isVisible());if(width<=700)await page.locator('#phone-navigate').click();
  check(prefix+' separate overlapping categories and unique lesson count',await page.locator('.attention-panel .dashboard-panel-heading>span').innerText()==='7 lessons'&&await page.locator('[data-attention-group="draft"] h3>span').innerText()==='3'&&await page.locator('[data-attention-group="inProgress"] h3>span').innerText()==='3'&&await page.locator('[data-attention-group="unscheduled"] h3>span').innerText()==='3');
  const help=page.locator('.dashboard-help'),helpControl=help.locator('summary');
  check(prefix+' reading help is a native closed disclosure',await help.evaluate(e=>e.tagName==='DETAILS'&&!e.open)&&await helpControl.innerText()==='About these summaries');
@@ -525,7 +541,7 @@ async function verifyDashboard(page,width,fixture){
  if(width===390){await page.setViewportSize({width:320,height:1000});check(prefix+' 320px dates and controls stay readable without overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)&&await page.locator('[data-dashboard-day] time').count()===7&&await page.locator('.dashboard-day-empty').evaluateAll(nodes=>nodes.every(n=>n.getBoundingClientRect().height<=44)));await page.screenshot({path:resolve(out,prefix+'-320px-week.png'),fullPage:true});await page.setViewportSize({width,height:1000});}
  check(prefix+' provenance preserves distinct same-title closures',await tuesday.locator('.dashboard-agenda-item.exception').count()===3&&await tuesday.locator('.uncertain').count()===1);
  check(prefix+' confirmed multiday lesson on both saved dates',await page.locator('.week-panel [data-dashboard-lesson="'+fixture.lessons[1].id+'"]').count()===2);
- await page.locator('.dashboard-data-notes>summary').click();
+ await click(page.locator('.dashboard-data-notes>summary'));
  check(prefix+' missing dates and uncertainty are disclosed',(await page.locator('.dashboard-data-notes').innerText()).includes('unclear lesson dates')&&(await tuesday.locator('.uncertain').innerText()).includes('constraints unclear'));
  check(prefix+' archived records absent',!(await page.locator('#dashboard-content').innerText()).includes('Archived individual lesson')&&!(await page.locator('#dashboard-content').innerText()).includes('Hidden archived-unit child'));
  await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:resolve(out,prefix+'-home.png'),fullPage:true});await page.locator('.week-panel').screenshot({path:resolve(out,prefix+'-week-exceptions.png')});
@@ -534,7 +550,7 @@ async function verifyDashboard(page,width,fixture){
  check(prefix+' attention keyboard entry opens exact stable lesson',await page.locator('[data-private-save="lessons"] [name="title"]').inputValue()===firstLesson.title&&await page.locator('[data-private-save="lessons"] [name="title"]').evaluate(e=>e===document.activeElement));
  await page.locator('[name="objective"]').fill('Unsaved dashboard source-course draft');await page.evaluate(()=>{window.dashboardEditor=document.querySelector('[name="objective"]');window.dashboardPrimary=document.querySelector('.private-primary');window.dashboardPrimary.scrollTop=100;window.dashboardScroll=window.dashboardPrimary.scrollTop;});
  await click(page.locator('[data-global-home]'));check(prefix+' Continue accurate course lesson and dirty state',(await page.locator('#continue-context').innerText()).includes(firstLesson.title)&&(await page.locator('#continue-context').innerText()).includes('Unsaved edits'));
- await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});await page.screenshot({path:resolve(out,prefix+'-continue.png')});await page.locator('[data-resume-workspace]').click();
+ await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});await page.screenshot({path:resolve(out,prefix+'-continue.png')});await click(page.locator('[data-resume-workspace]'));
  check(prefix+' Continue preserves actual dirty DOM and primary scroll',await page.evaluate(()=>document.querySelector('[name="objective"]')===window.dashboardEditor&&window.dashboardEditor.value==='Unsaved dashboard source-course draft'&&window.dashboardPrimary.scrollTop===window.dashboardScroll));
  await click(page.locator('[data-global-home]'));
  await click(page.locator('.week-panel [data-dashboard-lesson="'+otherLesson.id+'"]').first());await page.locator('[data-private-save="lessons"][data-id="'+otherLesson.id+'"]').waitFor();
@@ -546,30 +562,30 @@ async function verifyDashboard(page,width,fixture){
  check(prefix+' exact cached dirty lesson resumes without overwrite',await page.evaluate(()=>document.querySelector('[name="objective"]')===window.dashboardEditor&&window.dashboardEditor.value==='Unsaved dashboard source-course draft'));
  await click(page.locator('[data-global-home]'));await click(page.locator('.week-panel [data-dashboard-lesson="'+otherLesson.id+'"]').first());
  check(prefix+' destination course draft also survives',await page.locator('[name="objective"]').inputValue()==='Unsaved destination-course draft');
- await click(page.locator('#workspace-navigation [data-private-tab="calendar"]'));await page.locator('[data-unsaved-choice="discard"]').click();
- await page.locator('[data-global-home]').click();await click(tuesday.locator('[data-dashboard-course="'+second.id+'"][data-dashboard-date]').first());await page.locator('.saved-month').waitFor();
+ await click(page.locator('#workspace-navigation [data-private-tab="calendar"]'));await click(page.locator('[data-unsaved-choice="discard"]'));
+ await click(page.locator('[data-global-home]'));await click(tuesday.locator('[data-dashboard-course="'+second.id+'"][data-dashboard-date]').first());await page.locator('.saved-month').waitFor();
  check(prefix+' exception link opens saved calendar date and course',await page.locator('.saved-month [data-private-calendar-day="2026-10-27"]').getAttribute('aria-pressed')==='true'&&(await page.locator('.private-header h2').innerText())===second.name);
- await page.locator('[data-global-home]').click();await page.locator('[data-dashboard-week="1"]').click();await ready();
+ await click(page.locator('[data-global-home]'));await click(page.locator('[data-dashboard-week="1"]'));await ready();
  check(prefix+' next week has honest empty schedule',await page.locator('.dashboard-agenda-item').count()===0&&(await page.locator('.week-panel').innerText()).includes('No saved entries.'));
  check(prefix+' wholly empty week keeps seven compact rows including weekend',await page.locator('.dashboard-day-empty').count()===7&&await page.locator('.dashboard-day-empty time').evaluateAll(nodes=>nodes.every(n=>n.getClientRects().length>0)&&nodes[5].textContent.startsWith('Sat')&&nodes[6].textContent.startsWith('Sun'))&&await page.locator('.dashboard-day-empty').evaluateAll(nodes=>nodes.every(n=>n.getBoundingClientRect().height<=44)));
  if(width===390){await page.setViewportSize({width:320,height:1000});check(prefix+' 320px empty week is compact and has no overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)&&await page.locator('.dashboard-day-empty').evaluateAll(nodes=>nodes.every(n=>n.getBoundingClientRect().height<=44)));await page.setViewportSize({width,height:1000});}
- await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});await page.screenshot({path:resolve(out,prefix+'-empty-week.png'),fullPage:true});await page.locator('[data-dashboard-week="0"]').click();await ready();
+ await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});await page.screenshot({path:resolve(out,prefix+'-empty-week.png'),fullPage:true});await click(page.locator('[data-dashboard-week="0"]'));await ready();
  await page.evaluate(id=>{window.testDashboardFailCourse=id;window.testAuthEvent('TOKEN_REFRESHED');},second.id);await page.locator('.dashboard-failures').waitFor();
  check(prefix+' partial course failure does not become empty dashboard',(await page.locator('.dashboard-load-status').innerText()).includes('1 unavailable')&&await page.locator('[data-attention-group="draft"] h3>span').innerText()==='2');
- await page.evaluate(()=>{window.testDashboardFailAll=true;});await page.locator('[data-dashboard-retry]').click();
+ await page.evaluate(()=>{window.testDashboardFailAll=true;});await click(page.locator('[data-dashboard-retry]'));
  await page.waitForFunction(()=>document.querySelectorAll('.dashboard-failures li').length===2);
  check(prefix+' all-course failures are not an empty or endless-loading state',(await page.locator('.attention-panel').innerText()).includes('could not be loaded')&&!((await page.locator('.attention-panel').innerText()).includes('0 lessons')));
- await page.evaluate(()=>{window.testDashboardFailAll=false;window.testDashboardFailCourse=null;window.testDashboardFailEvents=true;});await page.locator('[data-dashboard-retry]').click();
+ await page.evaluate(()=>{window.testDashboardFailAll=false;window.testDashboardFailCourse=null;window.testDashboardFailEvents=true;});await click(page.locator('[data-dashboard-retry]'));
  await page.waitForFunction(()=>document.querySelector('.dashboard-load-status')?.textContent.includes('some calendar events unavailable'));
- if(!await page.locator('.dashboard-data-notes').evaluate(e=>e.open))await page.locator('.dashboard-data-notes>summary').click();
+ if(!await page.locator('.dashboard-data-notes').evaluate(e=>e.open))await click(page.locator('.dashboard-data-notes>summary'));
  check(prefix+' partial warnings remain prominent outside reading help',await page.locator('.dashboard-load-status').isVisible()&&await page.locator('.dashboard-load-status').evaluate(e=>!e.closest('.dashboard-help'))&&await page.locator('[data-dashboard-retry]').isVisible());
  check(prefix+' event failures retain lesson agenda and truthful partial state',await page.locator('.dashboard-agenda-item.lesson').count()>0&&await page.locator('.dashboard-agenda-item.exception').count()===0&&(await page.locator('.dashboard-data-notes').innerText()).includes('calendar events unavailable'));
- await page.evaluate(()=>{window.testDashboardFailEvents=false;});await page.locator('[data-dashboard-retry]').click();await ready();
+ await page.evaluate(()=>{window.testDashboardFailEvents=false;});await click(page.locator('[data-dashboard-retry]'));await ready();
  check(prefix+' no responsive page overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  check(prefix+' all navigation leaves saved signatures and writes unchanged',await page.evaluate(before=>JSON.stringify(window.testDb)===before&&window.testWrites.length===0,before));
  await control(page.locator('#course-name'),'fill','Disposable A-only unsaved course title');
  await control(page.locator('#restore-file'),'setInputFiles',{name:'disposable-a-export.json',mimeType:'application/json',buffer:Buffer.from('{}')});
- await page.locator('[data-settings-close]').click();await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await ready();
+ await click(page.locator('[data-settings-close]'));await page.evaluate(()=>window.testAuthEvent('TOKEN_REFRESHED'));await ready();
  check(prefix+' same-account refresh preserves course draft and selected restore file',await page.locator('#course-name').inputValue()==='Disposable A-only unsaved course title'&&await page.locator('#restore-file').evaluate(e=>e.files.length===1));
  await page.evaluate(()=>{window.testHoldDashboard=true;window.testAuthEvent('TOKEN_REFRESHED');});await page.waitForFunction(()=>window.testPendingDashboard.length>0);
  check(prefix+' loading is not reported as zero lessons',(await page.locator('.attention-panel').innerText()).includes('Waiting for saved course records')&&!((await page.locator('.attention-panel').innerText()).includes('0 lessons')));
@@ -580,18 +596,18 @@ async function verifyDashboard(page,width,fixture){
  await page.evaluate(()=>{window.testSignedOut=false;window.testOwner='60000000-0000-4000-8000-000000000002';window.testAuthEvent('SIGNED_IN');});
  await page.waitForFunction(()=>document.querySelector('.dashboard-load-status')?.textContent==='1 of 1 courses loaded.');
  check(prefix+' new account dashboard excludes prior owner',!(await page.locator('#dashboard-content').innerText()).includes('Fictional Civic Systems')&&await page.locator('#home-courses button').count()===1);
- await page.locator('[data-workspace-settings]').click();
+ await click(page.locator('[data-workspace-settings]'));
  check(prefix+' next account cannot see previous account form or editor drafts',await page.locator('#course-name').inputValue()===''&&await page.locator('#restore-file').evaluate(e=>e.files.length===0)&&await page.locator('#private-workspace textarea').evaluateAll(nodes=>nodes.every(n=>!n.value.includes('Unsaved dashboard source-course draft')&&!n.value.includes('Unsaved destination-course draft'))));
- await page.locator('[data-settings-close]').click();
+ await click(page.locator('[data-settings-close]'));
 }
 // Stage A exercises the actual DOM adapter and coordinator with deferred fictional writes.
 async function verifyStageA(page,width,fixture,lesson){
  const prefix='stage-a-'+width;
- if(await page.locator('#workspace-settings').evaluate(e=>e.open))await page.locator('[data-settings-close]').click();
+ if(await page.locator('#workspace-settings').evaluate(e=>e.open))await click(page.locator('[data-settings-close]'));
  const open=await page.evaluate(async({courseId,lessonId})=>(await import('./private-workspace.js')).openDashboardDestination(window.testClient,{id:window.testOwner},{courseId,lessonId}),{courseId:fixture.course.id,lessonId:lesson.id});
  check(prefix+' existing Dashboard document route still opens',open.ok);
  const before=await page.evaluate(()=>JSON.stringify(window.testDb));
- await click(page.locator('[data-global-home]'));await page.locator('[data-resume-workspace]').click();
+ await click(page.locator('[data-global-home]'));await click(page.locator('[data-resume-workspace]'));
  check(prefix+' navigation never changes saved records',await page.evaluate(original=>JSON.stringify(window.testDb)===original,before));
  await control(page.locator('[name="objective"]'),'fill','Stage A submitted objective');
  await page.evaluate(()=>{window.testHoldWrites=true;delete window.testReleaseWrite;window.stageAEditor=document.querySelector('[name="objective"]');});
@@ -600,7 +616,7 @@ async function verifyStageA(page,width,fixture,lesson){
  await page.evaluate(()=>document.querySelector('[data-private-tab="calendar"]').click());
  check(prefix+' pending save blocks replacement navigation',(await page.locator('#private-status').textContent()).includes('Wait for the current save'));
  await control(page.locator('[name="objective"]'),'fill','Stage A typed during save');
- await click(page.locator('[data-global-home]'));await page.locator('[data-resume-workspace]').click();
+ await click(page.locator('[data-global-home]'));await click(page.locator('[data-resume-workspace]'));
  check(prefix+' Home retains pending editor node and newer text',await page.evaluate(()=>document.querySelector('[name="objective"]')===window.stageAEditor&&window.stageAEditor.value==='Stage A typed during save'));
  await page.evaluate(()=>{window.testHoldWrites=false;window.testReleaseWrite();});await page.waitForFunction(()=>document.getElementById('private-status').textContent.startsWith('Submitted changes saved'));
  check(prefix+' acknowledged save retains newer shared draft',await page.locator('[name="objective"]').inputValue()==='Stage A typed during save'&&await page.evaluate(async()=>(await import('./private-workspace.js')).isPrivateWorkspaceDirty()));
@@ -658,7 +674,7 @@ async function verifyTeacherRefresh(page,width,fixture){
   const boot=await page.evaluate(()=>window.qaBootId);
   const accept=d=>void d.accept();page.on('dialog',accept);
   try{await page.reload();}finally{page.off('dialog',accept);}
-  await page.locator('#saved-courses [data-private-open]').waitFor();
+  await page.locator('#saved-courses [data-private-open]').waitFor({state:'attached'});
   check(prefix+' fresh page discarded old module state',await page.evaluate(boot=>window.qaBootId!==boot,boot));
  }
  const unitValue='DEC-100 saved fictional unit question',lessonValue='DEC-100 saved fictional lesson objective';
@@ -698,9 +714,9 @@ async function verifyTeacherRefresh(page,width,fixture){
 async function verifyLossless(page,width,fixture){
  const size=fixture.lessons.length,prefix=`lossless-${size}-${width}`;let downloads=0;page.on('download',()=>downloads++);
  const active=buildCalendarModel(fixture),activeUnits=fixture.units.filter(u=>u.archived_at==null).length;
- await page.locator('#home-courses button').waitFor();await page.locator('#home-courses button').click();await page.locator('.private-table tbody tr').last().waitFor();
+ await page.locator('#home-courses button').waitFor();await click(page.locator('#home-courses button'));await page.locator('.private-table tbody tr').last().waitFor();
  check(prefix+' complete ordered editor includes archived recovery records',await page.locator('.private-table tbody tr').count()===size&&(await page.locator('.workspace-counts').innerText()).startsWith('200 unit(s) · '+size+' lesson(s)')&&await page.locator('.private-table tbody tr').last().innerText().then(t=>t.includes(fixture.lessons.at(-1).title)));
- await page.locator('#workspace-navigation [data-private-tab="overview"]').click();
+ await click(page.locator('#workspace-navigation [data-private-tab="overview"]'));
  check(prefix+' complete Overview uses active archive rules',await page.locator('.overview-counts dd').nth(0).innerText()===String(activeUnits)&&await page.locator('.overview-counts dd').nth(1).innerText()===String(active.lessons.length));
  const tail=[...fixture.lessons].reverse().find(l=>l.archived_at==null&&fixture.units.find(u=>u.id===l.unit_id).archived_at==null);
  await page.evaluate(async({course,id,date})=>(await import('./private-workspace.js')).openDashboardDestination(window.testClient,{id:window.testOwner},{courseId:course,lessonId:null,date}),{course:fixture.course.id,id:tail.id,date:tail.scheduled_dates[0]});
@@ -715,7 +731,7 @@ async function verifyLossless(page,width,fixture){
  check(prefix+' exported counts IDs fields archives and links are complete',json.units.length===200&&json.lessons.length===size&&json.calendarExceptions.length===601&&['units','lessons','calendarExceptions'].every(k=>new Set(json[k].map(r=>r.id)).size===expected[k].length&&JSON.stringify([...json[k]].sort((a,b)=>a.id.localeCompare(b.id)))===JSON.stringify([...expected[k]].sort((a,b)=>a.id.localeCompare(b.id)))));
  check(prefix+' export independently reads newest saved values',json.lessons.find(l=>l.id===tail.id).objective==='New externally saved café objective'&&(await page.locator('#private-status').textContent()).includes('Verified saved export'));
  const evidence={width,saved: {units:200,lessons:size,calendarExceptions:601},exported:{units:json.units.length,lessons:json.lessons.length,calendarExceptions:json.calendarExceptions.length},uniqueLessonIds:new Set(json.lessons.map(l=>l.id)).size,sourceIdsPreserved:true,archivedRecordsPreserved:true};
- await control(page.locator('#restore-file'),'setInputFiles',{name:'lossless-fictional.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(json))});page.once('dialog',d=>d.accept());await page.locator('#restore-form button').click();
+ await control(page.locator('#restore-file'),'setInputFiles',{name:'lossless-fictional.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(json))});page.once('dialog',d=>d.accept());await click(page.locator('#restore-form button'));
  await page.waitForFunction(()=>document.querySelector('#restore-status').textContent.includes('Restore complete'));
  const fidelity=await page.evaluate(original=>{
   const restored=window.testDb.courses.find(c=>c.id!==original.course.id),units=window.testDb.units.filter(u=>u.course_id===restored.id),lessons=window.testDb.lessons.filter(l=>l.course_id===restored.id),events=window.testDb.calendar_exceptions.filter(e=>e.course_id===restored.id);
@@ -727,8 +743,8 @@ async function verifyLossless(page,width,fixture){
  const members=[];let offset=0;while(bytes.readUInt32LE(offset)===0x04034b50){const len=bytes.readUInt32LE(offset+18),nameLen=bytes.readUInt16LE(offset+26),extra=bytes.readUInt16LE(offset+28),name=bytes.subarray(offset+30,offset+30+nameLen).toString(),start=offset+30+nameLen+extra;members.push({name,data:bytes.subarray(start,start+len)});offset=start+len;}
  const manifest=JSON.parse(members.find(m=>m.name==='backup-manifest.json').data);
  check(prefix+' ZIP retains both complete original and restored courses with valid hashes',manifest.courseCount===2&&manifest.courses.every(c=>c.counts.units===200&&c.counts.lessons===size&&c.counts.calendarExceptions===601)&&await Promise.all(manifest.courses.map(async c=>{const data=members.find(m=>m.name===c.filename).data;return Buffer.from(await crypto.subtle.digest('SHA-256',data)).toString('hex')===c.sha256;})).then(r=>r.every(Boolean)));
- evidence.zipVerified=true;await writeFile(resolve(out,prefix+'-export-counts.json'),JSON.stringify(evidence,null,2));await page.locator('[data-settings-close]').click();
- await page.locator('[data-global-home]').click();await page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]').click();
+ evidence.zipVerified=true;await writeFile(resolve(out,prefix+'-export-counts.json'),JSON.stringify(evidence,null,2));await click(page.locator('[data-settings-close]'));
+ await click(page.locator('[data-global-home]'));await click(page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]'));
  const expectFailure=async table=>{const count=downloads;await page.evaluate(table=>window.testPageFail=table,table);await click(page.locator('[data-private-export]'));await page.waitForFunction(()=>document.querySelector('#private-status')?.textContent.startsWith('Export failed:'));check(prefix+' '+table+' page failure downloads nothing and is visible',downloads===count&&await page.locator('#private-status').isVisible()&&!(await page.locator('#private-status').getAttribute('class')).includes('sr-only'));};
  for(const table of ['units','lessons','calendar_exceptions'])await expectFailure(table);
  await page.evaluate(()=>{window.retainedPrimary=document.querySelector('.private-primary');});await click(page.locator('[data-private-reload]'));await page.waitForFunction(()=>document.querySelector('#private-status')?.textContent.startsWith('Reload failed'));
@@ -736,10 +752,10 @@ async function verifyLossless(page,width,fixture){
  await page.evaluate(()=>{window.testPageFail=null;window.testConcurrentEdit=true;});const before=downloads;await click(page.locator('[data-private-export]'));await page.waitForFunction(()=>document.querySelector('#private-status')?.textContent.startsWith('Export failed:'));
  check(prefix+' parallel edit aborts export without download',downloads===before&&(await page.locator('#private-status').textContent()).includes('changed during'));
  await page.evaluate(id=>{window.testHoldPage=true;window.testHoldCourseId=id;window.testOldExportButton=document.querySelector('[data-private-export]');delete window.testReleasePage;},fixture.course.id);await click(page.locator('[data-private-export]'));await page.waitForFunction(()=>typeof window.testReleasePage==='function');
- await page.locator('[data-global-home]').click();await page.locator('#home-courses button').filter({hasText:'(restored)'}).click();await page.locator('.private-header h2').filter({hasText:'(restored)'}).waitFor();
+ await click(page.locator('[data-global-home]'));await page.locator('#home-courses button').filter({hasText:'(restored)'}).click();await page.locator('.private-header h2').filter({hasText:'(restored)'}).waitFor();
  await page.evaluate(()=>{window.testHoldPage=false;window.testReleasePage();});await page.waitForFunction(()=>!window.testOldExportButton.disabled);
  check(prefix+' course switch cancels pending export without download',downloads===before);
- await page.locator('[data-global-home]').click();await page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]').click();await page.getByRole('heading',{name:fixture.course.name,exact:true}).waitFor();
+ await click(page.locator('[data-global-home]'));await click(page.locator('#home-courses [data-private-open="'+fixture.course.id+'"]'));await page.getByRole('heading',{name:fixture.course.name,exact:true}).waitFor();
  check(prefix+' returning cached workspace re-enables its export button',await page.locator('[data-private-export]').isEnabled());
  await page.evaluate(async({course,lesson})=>(await import('./private-workspace.js')).openDashboardDestination(window.testClient,{id:window.testOwner},{courseId:course,lessonId:lesson}),{course:fixture.course.id,lesson:tail.id});
  await page.locator('[name="objective"]').fill('Unsaved lossless draft');await click(page.locator('[data-private-export]'));
@@ -768,9 +784,9 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser;
 try{
  browser=await chromium.launch({...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),headless:true});
- for(const [fixtureName,fixture] of [['mobile-workspace',scheduleFixture()],['manual-save',manualSaveFixture()],['central-tabs',(()=>{const f=scheduleFixture(),extra=scheduleFixture();extra.course={...extra.course,id:previewId(900),name:'Second fictional tab course'};extra.units=extra.units.map(u=>({...u,id:previewId(901),course_id:extra.course.id}));extra.lessons=extra.lessons.map((l,i)=>({...l,id:previewId(910+i),course_id:extra.course.id,unit_id:extra.units[0].id}));f.units.push({...f.units[0],id:previewId(920),title:'Empty fictional unit',position:2},{...f.units[0],id:previewId(921),title:'Other fictional unit',position:3});f.lessons[3].unit_id=previewId(921);f.dashboardExtra=extra;return f;})()],['teacher-refresh',scheduleFixture()],['lossless-1001',largeCourseFixture(1001)],['lossless-1201',largeCourseFixture(1201)],['lossless-2000',largeCourseFixture(2000)],['dashboard',dashboardFixture()],['cards',archived],['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
+ for(const [fixtureName,fixture] of [['mobile-workspace',manualSaveFixture()],['manual-save',manualSaveFixture()],['central-tabs',(()=>{const f=scheduleFixture(),extra=scheduleFixture();extra.course={...extra.course,id:previewId(900),name:'Second fictional tab course'};extra.units=extra.units.map(u=>({...u,id:previewId(901),course_id:extra.course.id}));extra.lessons=extra.lessons.map((l,i)=>({...l,id:previewId(910+i),course_id:extra.course.id,unit_id:extra.units[0].id}));f.units.push({...f.units[0],id:previewId(920),title:'Empty fictional unit',position:2},{...f.units[0],id:previewId(921),title:'Other fictional unit',position:3});f.lessons[3].unit_id=previewId(921);f.dashboardExtra=extra;return f;})()],['teacher-refresh',scheduleFixture()],['lossless-1001',largeCourseFixture(1001)],['lossless-1201',largeCourseFixture(1201)],['lossless-2000',largeCourseFixture(2000)],['dashboard',dashboardFixture()],['cards',archived],['home',fullyScheduled80Fixture()],['empty',{...scheduleFixture(),empty:true}],['ux',fullyScheduled80Fixture()],['sample',scheduleFixture()],['preview',scheduleFixture()],['outlook',buildOutlookFixture()],['outlook-long',(()=>{const s=fullyScheduled80Fixture();s.lessons.slice(1).forEach(l=>{l.scheduled_dates=[];l.protected_pin_date=null;});return s;})()],['complete-80',fullyScheduled80Fixture()],['partial',(()=>{const s=scheduleFixture();s.lessons[3].scheduled_dates=[];return s;})()],['synthetic',synthetic],['archived',archived],...(stored?[['stored-fictional',stored]]:[])].filter(([name])=>!process.env.COURSE_PLANNER_BROWSER_FIXTURES||process.env.COURSE_PLANNER_BROWSER_FIXTURES.split(',').includes(name))){
   const expected=buildCalendarModel(fixture);
-  for(const width of (fixtureName==='mobile-workspace'?[320,390,400,1440]:[1440,390])){
+  for(const width of (fixtureName==='mobile-workspace'?[320,390,400,430,1440]:[1440,390])){
    const context=await browser.newContext({viewport:{width,height:1000},hasTouch:fixtureName==='mobile-workspace'&&width<=700,acceptDownloads:true,serviceWorkers:'block'});context.setDefaultTimeout(20000);
    console.log('Checking '+fixtureName+' at '+width+'px');activeCase={fixture:fixtureName,width};cases.push(activeCase);
    await context.route('**/*',route=>new URL(route.request().url()).origin===`http://127.0.0.1:${server.address().port}`?route.continue():route.abort());
@@ -847,7 +863,7 @@ try{
     check('auth-'+width+' each course appears once',await page.locator('#saved-courses [data-private-open]').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.privateOpen)).size===3));
     check('auth-'+width+' rendering performs no writes',await page.evaluate(()=>window.testWrites.length===0));
    }
-   if(fixtureName==='mobile-workspace'){await verifyMobileWorkspace(page,width,fixture,{check,click,out});await context.close();continue;}
+   if(fixtureName==='mobile-workspace'){await verifyMobileWorkspace(page,width,fixture,{check,click,control,out});await context.close();continue;}
    if(fixtureName==='manual-save'){await verifyManualSave(page,width,fixture,{check,click,control,out});await context.close();continue;}
    if(fixtureName==='central-tabs'){await verifyCentralTabs(page,width,fixture,{check,click,control,out});await context.close();continue;}
    if(fixtureName==='teacher-refresh'){await verifyTeacherRefresh(page,width,fixture);await context.close();continue;}
@@ -855,7 +871,7 @@ try{
    if(fixtureName==='dashboard'){await verifyDashboard(page,width,fixture);await context.close();continue;}
    if(fixtureName==='cards'){await verifyCourseCards(page,width,fixture);await context.close();continue;}
    if(['home','empty'].includes(fixtureName)){await verifyHomeNavigation(page,width,fixture);await context.close();continue;}
-   await page.locator('[data-private-tab="calendar"]').click();
+   await click(page.locator('[data-private-tab="calendar"]'));
    await page.locator('.saved-month').waitFor();
    const prefix=`${fixtureName}-${width}`;
    if(fixtureName==='ux'){await verifyUXStructure(page,width,prefix,fixture);await context.close();continue;}
@@ -900,7 +916,7 @@ try{
    check(prefix+' next week navigation',await page.locator('.saved-calendar-toolbar h3').innerText()!==previous);
    await click(page.locator('[data-private-calendar-period="-1"]'));
    const dayButton=page.locator(`[data-private-calendar-day="${firstDate}"]`).first();
-   if(await page.locator('.private-primary').evaluate(e=>e.inert))await page.locator('[data-inspector-close]').click();await dayButton.focus();await page.keyboard.press('ArrowRight');
+   if(await page.locator('.private-primary').evaluate(e=>e.inert))await click(page.locator('[data-inspector-close]'));await dayButton.focus();await page.keyboard.press('ArrowRight');
    check(prefix+' keyboard date and focus',width===390?await page.locator('#saved-day-title').evaluate(e=>e===document.activeElement)&&await page.locator(`[data-private-calendar-day="${addCalendarDays(firstDate,1)}"]`).first().getAttribute('aria-pressed')==='true':await page.locator(`[data-private-calendar-day="${addCalendarDays(firstDate,1)}"]`).first().evaluate(e=>e===document.activeElement));
    await click(page.locator(`[data-private-calendar-day="${firstDate}"]`).first());
    await page.locator('.saved-calendar-layout').screenshot({path:resolve(out,prefix+'-week.png')});
@@ -910,7 +926,7 @@ try{
    check(prefix+' same lesson editor ID',await page.locator(`[data-private-save="lessons"][data-id="${chosen.id}"]`).count()===1);
    check(prefix+' lesson editor receives focus',await page.locator('[data-private-save="lessons"] input[name="title"]').evaluate(e=>e===document.activeElement));
    await control(page.locator('[name="objective"]'),'fill','Fictional acceptance draft');
-   await click(page.locator('[data-private-tab="units"]'));await page.locator('[data-unsaved-choice="cancel"]').click();
+   await click(page.locator('[data-private-tab="units"]'));await click(page.locator('[data-unsaved-choice="cancel"]'));
    check(prefix+' unsaved guard preserves draft',await page.locator('[name="objective"]').inputValue()==='Fictional acceptance draft');
    if(fixtureName==='synthetic'||fixtureName==='archived'){
     // Actual save/reopen and conflict paths, backed by the test client only.
@@ -923,7 +939,7 @@ try{
     await click(page.locator('[data-private-save="lessons"] button[type="submit"]'));
     await page.waitForFunction(()=>document.getElementById('private-status').textContent.includes('Save conflict'));
     check(prefix+' stale conflict preserves draft',await page.locator('[name="objective"]').inputValue()==='Newer fictional draft');
-    await click(page.locator('[data-private-tab="sequence"]'));await page.locator('[data-unsaved-choice="discard"]').click();await click(page.locator('[data-private-tab="calendar"]'));
+    await click(page.locator('[data-private-tab="sequence"]'));await click(page.locator('[data-unsaved-choice="discard"]'));await click(page.locator('[data-private-tab="calendar"]'));
     const downloadPromise=page.waitForEvent('download');await click(page.locator('[data-private-export]'));const download=await downloadPromise;
     const json=JSON.parse(await readFile(await download.path(),'utf8'));
     check(prefix+' JSON export retains complete archived records',hiddenLessons.every(l=>JSON.stringify(json.lessons.find(x=>x.id===l.id))===JSON.stringify(l))&&fixture.units.filter(u=>u.archived_at!=null).every(u=>JSON.stringify(json.units.find(x=>x.id===u.id))===JSON.stringify(u)));
@@ -948,7 +964,7 @@ try{
     check(prefix+' ZIP includes original and restored course',files.length===3&&files.find(f=>f.name==='backup-manifest.json').value.courseCount===2);
     if(fixtureName==='synthetic')await verifyStageA(page,width,fixture,chosen);
    }else{
-    await click(page.locator('[data-private-tab="sequence"]'));await page.locator('[data-unsaved-choice="discard"]').click();await click(page.locator('[data-private-tab="calendar"]'));
+    await click(page.locator('[data-private-tab="sequence"]'));await click(page.locator('[data-unsaved-choice="discard"]'));await click(page.locator('[data-private-tab="calendar"]'));
     check(prefix+' stored comparison did not write',await page.evaluate(()=>window.testWrites.length===0));
     check(prefix+' stored schedule facts unchanged',await page.evaluate(()=>JSON.stringify(window.testDb.lessons)===JSON.stringify(window.testSnapshot.lessons)));
    }
@@ -961,7 +977,7 @@ try{
  await page.route('https://esm.sh/**',r=>r.fulfill({contentType:'text/javascript',body:'export const createClient=()=>({auth:{async getSession(){return {data:{session:null}}},onAuthStateChange(){}}});'}));
  await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
  await page.evaluate(async()=>{const {openPrivateCourse}=await import('./private-workspace.js');const c={id:'00000000-0000-4000-8000-000000000001',owner_id:'empty-owner',name:'Empty fictional first course',revision:1};const client={from(table){const b={select(){return b},eq(){return b},order(){return b},range(){return b},single(){return Promise.resolve({data:c})},then(r){return Promise.resolve({data:[],count:0}).then(r)}};return b}};await openPrivateCourse(client,{id:c.owner_id},c.id);});
- await page.locator('[data-private-tab="calendar"]').click();
+ await click(page.locator('[data-private-tab="calendar"]'));
  check('empty first course capacity unknown',await page.getByText(/Capacity unknown until term/).count()===1);
  check('empty first course month renders',await page.locator('.saved-month-days>.saved-calendar-day').count()>=28);
  await click(page.locator('[data-event-open=""]'));await page.locator('[data-event-preview-form] [name="title"]').fill('Fictional empty-course event');await formSubmit(page,'[data-event-preview-form] button[type="submit"]');
