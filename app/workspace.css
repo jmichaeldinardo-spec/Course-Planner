@@ -198,7 +198,7 @@ body:has(#private-home:not([hidden])) .workspace-empty{display:none}
  .legacy-demonstration,.pilot-footer{display:none}
  #phone-shell{display:block;position:fixed;inset:59px 0 0;pointer-events:none;z-index:26}
  .phone-toolbar{pointer-events:auto;position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-around;padding:6px 12px calc(6px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line)}
- .phone-toolbar button{min-width:64px;min-height:56px;border:0;border-radius:12px;background:transparent;color:var(--ink);font:inherit;font-size:22px}.phone-toolbar span{display:block;font-size:12px}
+ .phone-toolbar button{min-width:64px;min-height:56px;border:0;border-radius:12px;background:transparent;color:var(--ink);font:inherit;font-size:22px}#phone-views .phone-view-count:not(:empty){display:inline-block;margin-left:4px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;vertical-align:middle;color:var(--muted)}.phone-toolbar span{display:block;font-size:12px}
  #phone-shell .teacher-sidebar{pointer-events:auto;position:absolute;top:0;left:0;width:min(355px,90vw);height:calc(100% - 68px - env(safe-area-inset-bottom));overflow:auto;overflow-x:hidden;overscroll-behavior:contain;transform:translateX(-105%);transition:transform .22s ease,visibility 0s linear .22s;visibility:hidden;padding:16px;touch-action:pan-y;box-shadow:16px 0 40px #0007}
  .phone-navigation-open #phone-shell .teacher-sidebar{transform:translateX(0);visibility:visible;transition-delay:0s}
  .phone-navigation-open .private-primary,.phone-navigation-open #private-home{overflow:hidden}
