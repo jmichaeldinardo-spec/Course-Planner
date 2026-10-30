@@ -93,3 +93,18 @@ and place focus on the adjacent close control. Cancel and failed saves retain th
 view. Closing a view never deletes its curriculum record. A restrained caption
 explains full-card long-press dragging; no grip or unrelated UI is introduced.
 Physical iPhone Safari acceptance remains required.
+
+## DEC-110 shared sheet positions
+
+Open Views and New share compact-first viewport geometry, independent of item
+count. Compact uses 44% of the available sheet area; a common type-scaled chrome
+floor preserves controls in short viewports, clamped to available space. Expanded
+uses the available height above the measured toolbar, below the app header.
+The handle follows upward height changes and downward compact dismissal. One
+downward gesture from expanded returns to compact; short/canceled gestures return
+to the prior position. Tap/Enter/Space toggles, Up expands, Down compacts or
+dismisses, and Close/Escape dismiss. Reduced motion skips settling animation.
+Viewport/toolbar resize recalculates the selected position without rebuilding
+content or workspace state. Only the sheet list scrolls. Heights and thresholds
+remain owner-calibration choices; physical Safari testing is still required.
+The generic sheet-positions module owns no records, views or persistence.

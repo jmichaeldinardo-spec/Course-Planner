@@ -1,3 +1,4 @@
+import {createSheetPositions} from './sheet-positions.js';
 // Phone presentation/gestures only. All view mutations are supplied by workspace authority.
 export function createPhoneSheets(adapter){
  let active=null;
@@ -19,7 +20,7 @@ export function createPhoneSheets(adapter){
    reset();document.querySelector(kind==='views'?'#phone-views':'#phone-new')?.focus({preventScroll:true});return true;
   }};
   node.dismiss=state.close;node.resetSheet=reset;active=state;
-  let stopDrag=()=>{};state.cleanup=()=>stopDrag();
+  let positions,stopDrag=()=>{};state.cleanup=()=>{stopDrag();positions?.dispose();};
   const current=()=>active===state&&!state.closing&&node.isConnected&&model.current();
   const choose=async(action)=>{if(await state.close()&&model.current())await action();};
   function draw(focusId){
@@ -67,13 +68,8 @@ export function createPhoneSheets(adapter){
    if(focusId){const target=[...body.querySelectorAll('[data-finder-tab]')].find(b=>b.dataset.finderTab===focusId);target?.focus({preventScroll:true});target?.scrollIntoView({block:'nearest',inline:'nearest'});}
   }
   node.querySelector('[data-sheet-help]').id='phone-sheet-reorder-help';node.querySelector('[data-sheet-close]').addEventListener('click',()=>state.close());node.addEventListener('cancel',()=>state.close());
-  let pull=null;
-  handle.addEventListener('pointerdown',e=>{if(e.button!==0)return;pull={id:e.pointerId,y:e.clientY,delta:0};handle.setPointerCapture(e.pointerId);});
-  handle.addEventListener('pointermove',e=>{if(!pull||e.pointerId!==pull.id)return;pull.delta=Math.max(0,e.clientY-pull.y);node.style.transform=`translateY(${pull.delta}px)`;});
-  const release=async e=>{if(!pull||e.pointerId!==pull.id)return;const delta=pull.delta;pull=null;if(delta>=Math.min(100,node.offsetHeight*.25)&&e.type!=='pointercancel')await state.close();else{await animate(node,[{transform:node.style.transform},{transform:'none'}]);node.style.transform='';}};
-  handle.addEventListener('pointerup',release);handle.addEventListener('pointercancel',release);handle.addEventListener('keydown',e=>{if(e.key==='ArrowDown'||e.key==='Escape'){e.preventDefault();void state.close();}});
   if(kind==='views'){const hint=document.createElement('p');hint.className='phone-reorder-hint';hint.textContent='Touch and hold a view to rearrange.';node.querySelector('header').after(hint);const history=document.createElement('details');history.className='phone-view-history';history.innerHTML='<summary>View history</summary>';node.querySelector('header').after(history);for(const [step,label,enabled] of [[-1,'Back in view',model.back],[1,'Forward in view',model.forward]]){const b=document.createElement('button');b.type='button';b.dataset.finderHistory=step;b.textContent=label;b.disabled=!enabled;b.addEventListener('click',()=>choose(()=>model.travel(step)));history.append(b);}}
-  draw();window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:node}));handle.focus({preventScroll:true});void animate(node,[{transform:'translateY(110%)'},{transform:'none'}]);
+  draw();window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:node}));positions=createSheetPositions({node,handle,dismiss:state.close});handle.focus({preventScroll:true});void animate(node,[{transform:'translateY(110%)'},{transform:'none'}]);
  }
  return {open,reset};
 }
