@@ -18,7 +18,14 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
  async function close(id,choice){await click(page.locator('[data-tab-close="'+id+'"]'));if(choice)await choose(choice);}
  async function blank(){await click(page.locator('[data-tab-new]'));return activeId();}
  async function create(table,title){await blank();await click(page.locator('[data-tab-create="'+table+'"]'));check(prefix+' DEC103 creation '+title+' has no redundant Add or Inspector control',await page.locator('[data-private-add],[data-inspector-open]').count()===0&&await page.locator('.private-inspector').isHidden());const f=page.locator('[data-private-create="'+table+'"]');await control(f.locator('[name="title"]'),'fill',title);return {id:await activeId(),draft:await f.getAttribute('data-draft-id')};}
- async function snapshot(name){await page.screenshot({path:out+'/'+prefix+'-'+name+'.png',fullPage:true});}
+ // Full-page capture in bundled Chromium temporarily sets width to 1px, firing
+ // real phone-breakpoint handlers. This application uses viewport scroll regions.
+ // Capture the teacher's viewport and verify capture cannot alter its state.
+ async function snapshot(name){
+  const layout=()=>page.evaluate(()=>({width:innerWidth,height:innerHeight,active:document.querySelector('[role=tab][aria-selected=true]')?.dataset.tabSelect,dialogs:[...document.querySelectorAll('dialog[open]')].map(e=>e.className),sheet:document.querySelector('.phone-sheet')?.dataset.sheetKind}));
+  const before=await layout();await page.screenshot({path:out+'/'+prefix+'-'+name+'.png',fullPage:false});
+  check(prefix+' '+name+' capture preserves viewport and open presentation',JSON.stringify(await layout())===JSON.stringify(before));
+ }
  await click(page.locator('#saved-courses [data-private-open="'+fixture.course.id+'"]'));
  check(prefix+' DEC104 course opens with inspector closed',await page.locator('.private-inspector').isHidden());
  await normal('units');check(prefix+' DEC103 directory retains intentional Add',await page.locator('[data-private-add="units"]').count()===1);
@@ -42,7 +49,7 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
  await extra('lessons');check(prefix+' DEC101 new directory starts with All Units',await page.locator('[data-lesson-unit]').inputValue()==='');await control(page.locator('[data-lesson-unit]'),'selectOption',fixture.units[1].id);check(prefix+' DEC101 empty unit explains no matching lessons',(await page.locator('[data-lesson-directory-results]').textContent()).includes('No matching lessons in this unit'));
  await select(filterView);check(prefix+' DEC101 independent filter and search restored',await page.locator('[data-lesson-unit]').inputValue()===fixture.units[0].id&&await page.locator('[data-lesson-search]').inputValue()==='lesson 2');
  await normal('units');await click(page.locator('[data-private-unit="'+fixture.units[1].id+'"]'));check(prefix+' DEC101 connected empty state',(await connected.textContent()).includes('No lessons in this unit yet.'));
- await page.screenshot({path:out+'/'+prefix+'-unit-refinement.png',fullPage:true});
+ await snapshot('unit-refinement');
  check(prefix+' DEC101 navigation and filters perform no writes',await page.evaluate(before=>JSON.stringify(window.testDb)===before&&window.testWrites.length===0,decBefore));
  for(const id of await ids())await close(id);
  await normal('sequence');
@@ -122,11 +129,11 @@ export async function verifyCentralTabs(page,width,fixture,{check,click,control,
   const geometry=await page.locator('.tab-strip').evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth,left:e.scrollLeft,rows:[...e.querySelectorAll('.planning-tab:not([hidden])')].map(t=>({top:t.offsetTop,width:t.getBoundingClientRect().width}))}));
   check(prefix+' DEC102 '+target+' tabs fit one row without horizontal scrolling',width<=700?await page.locator('.course-tab-toolbar').isHidden():geometry.scroll<=geometry.width+1&&geometry.left===0&&new Set(geometry.rows.map(r=>r.top)).size===1&&geometry.rows.every(r=>r.width>=78));
   check(prefix+' DEC102 '+target+' active tab remains visible with full accessible name',(width<=700?await page.locator('#phone-views').isVisible():await active().isVisible())&&!!await active().getAttribute('aria-label'));
-  await page.screenshot({path:out+'/'+prefix+'-density-'+target+'.png',fullPage:true});
+  await snapshot('density-'+target);
  }
  if(width<=700){await click(page.locator('[data-tab-finder]'));const order=await ids();const body=page.locator('.phone-sheet-body'),cdp=await page.context().newCDPSession(page);await page.waitForFunction(()=>document.querySelector('.phone-sheet').getAnimations().length===0);const box=await body.boundingBox();await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+40,y:box.y+box.height-30}]});for(let i=1;i<=6;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+40,y:box.y+box.height-30-i*20}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForFunction(()=>document.querySelector('.phone-sheet-body').scrollTop>0);check(prefix+' ordinary list scrolling does not reorder or dismiss',JSON.stringify(await ids())===JSON.stringify(order)&&await page.locator('[data-dragging]').count()===0);await cdp.detach();await page.keyboard.press('Escape');await page.locator('.phone-sheet').waitFor({state:'detached'});}
  await click(page.locator('[data-tab-create="units"]'));await control(page.locator('[data-private-create="units"] [name="title"]'),'fill','Unsaved overflow marker');
- const total=await tabs().count();await click(page.locator('[data-tab-finder]'));check(prefix+' DEC102 finder retains access to every open view',await page.locator('[data-finder-tab]').count()===total);check(prefix+' DEC102 finder exposes unsaved overflow status',(await page.locator(width<=700?'.phone-sheet-body':'[data-finder-results]').textContent()).includes('Unsaved overflow marker · Unsaved edits'));await page.screenshot({path:out+'/'+prefix+'-overflow-finder.png',fullPage:true});await click(page.locator('[data-finder-tab]').first());if(width<=700){await click(page.locator('[data-tab-finder]'));await page.locator('[data-finder-tab]').last().focus();await page.keyboard.press('Enter');await page.locator('.phone-sheet').waitFor({state:'detached'});}else{await active().focus();await page.keyboard.press('End');}check(prefix+' DEC102 keyboard reaches overflowed final tab',await activeId()===(await ids()).at(-1)&&(width<=700?await page.locator('#phone-views').isVisible():await active().isVisible()));
+ const total=await tabs().count();await click(page.locator('[data-tab-finder]'));check(prefix+' DEC102 finder retains access to every open view',await page.locator('[data-finder-tab]').count()===total);check(prefix+' DEC102 finder exposes unsaved overflow status',(await page.locator(width<=700?'.phone-sheet-body':'[data-finder-results]').textContent()).includes('Unsaved overflow marker · Unsaved edits'));await snapshot('overflow-finder');await click(page.locator('[data-finder-tab]').first());if(width<=700){await click(page.locator('[data-tab-finder]'));await page.locator('[data-finder-tab]').last().focus();await page.keyboard.press('Enter');await page.locator('.phone-sheet').waitFor({state:'detached'});}else{await active().focus();await page.keyboard.press('End');}check(prefix+' DEC102 keyboard reaches overflowed final tab',await activeId()===(await ids()).at(-1)&&(width<=700?await page.locator('#phone-views').isVisible():await active().isVisible()));
  check(prefix+' DEC102 densities never mutate saved records',await page.evaluate(before=>JSON.stringify(window.testDb)===before,densityBefore));
 
 }
