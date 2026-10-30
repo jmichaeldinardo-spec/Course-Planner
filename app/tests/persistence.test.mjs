@@ -1,3 +1,4 @@
+import {createPhoneSheets} from '../phone-sheets.js';
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -60,7 +61,7 @@ test("unsaved drafts block background refreshes and in-flight responses",async()
   getElementById(id){return id==="private-workspace"?root:{dataset:{},textContent:""};},
   createElement(){return {dataset:{},append(){},remove(){}};},
  };
- const context={document,console,createWorkspaceTabs,createWorkspaceState,createWorkspaceNavigation,defaultOutlookPreferences,readCompleteCourse:()=>delayed,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
+ const context={document,console,createPhoneSheets,createWorkspaceTabs,createWorkspaceState,createWorkspaceNavigation,defaultOutlookPreferences,readCompleteCourse:()=>delayed,confirm:()=>true,URL,Blob,FormData,setTimeout,window:{addEventListener(){}}};
  vm.createContext(context);
  const source=workspace.replace(/^import .*$/gm,"").replace(/^export /gm,"");
  vm.runInContext(source,context,{filename:"private-workspace.js"});

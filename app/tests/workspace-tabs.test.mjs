@@ -43,3 +43,8 @@ test('Stage B: create acknowledgement promotes only its temporary identity acros
  tabs.open('course',{kind:'create-lesson',table:'lessons',draftId:b});tabs.promote('course','lessons',a,'saved-lesson');
  assert.equal(tabs.list('course')[0].history.at(-1).destination.recordId,'saved-lesson');assert.equal(tabs.current('course').destination.draftId,b);
 });
+
+test('phone reorder retains selected identity and independent histories without creating views',()=>{
+ const tabs=createWorkspaceTabs();tabs.setAccount('owner');const a=tabs.ensure('c').tabs[0],b=tabs.open('c',{kind:'lessons'});tabs.navigate('c',{kind:'units'});const before=structuredClone(b.history);
+ assert.equal(tabs.move('c',b.id,0),true);assert.equal(tabs.active('c').id,b.id);assert.deepEqual(b.history,before);assert.equal(tabs.list('c').length,2);assert.equal(tabs.list('c')[1],a);assert.equal(tabs.move('c',b.id,99),false);
+});

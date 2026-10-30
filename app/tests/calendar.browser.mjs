@@ -48,9 +48,9 @@ async function expose(locator){
  if(await page.locator('#phone-navigate').isVisible()&&await locator.count()){
   const target=await locator.first().evaluate(e=>({aside:!!e.closest('.teacher-sidebar'),course:e.dataset.privateOpen,id:e.dataset.tabSelect,close:e.dataset.tabClose,newView:e.hasAttribute('data-tab-new'),finder:e.hasAttribute('data-tab-finder'),history:e.dataset.tabHistory,courseOption:!!e.closest('#saved-courses'),icon:e.dataset.courseIcon}));
   if(!target.aside&&await page.locator('#phone-navigate').getAttribute('aria-expanded')==='true')await page.locator('#phone-navigate').click();
-  if(target.newView){await page.locator('#phone-new').click();return false;}
-  if(target.history){await page.locator('#phone-views').click();await page.locator('[data-finder-history="'+target.history+'"]').click();return false;}
-  if(target.finder||target.id||target.close){await page.locator('#phone-views').click();if(target.id)await page.locator('[data-finder-tab="'+target.id+'"]').click();if(target.close)await page.locator('[data-finder-close-tab="'+target.close+'"]').click();return false;}
+  if(target.newView){await page.locator('#phone-new').click();await page.locator('[data-phone-new=new]').click();await page.locator('.phone-sheet').waitFor({state:'detached'});return false;}
+  if(target.history){await page.locator('#phone-views').click();await page.locator('.phone-view-history summary').click();await page.locator('[data-finder-history="'+target.history+'"]').click();await page.locator('.phone-sheet').waitFor({state:'detached'});return false;}
+  if(target.finder||target.id||target.close){await page.locator('#phone-views').click();if(target.id)await page.locator('[data-finder-tab="'+target.id+'"]').click();if(target.close)await page.locator('[data-finder-close-tab="'+target.close+'"]').click();if(target.id||target.close)await page.locator('.phone-sheet').waitFor({state:'detached'});return false;}
   if(String(locator).includes('#sidebar-collapse')){await page.locator('#phone-navigate').click();return false;}
   if(target.aside){if(await page.locator('#phone-navigate').getAttribute('aria-expanded')!=='true')await page.locator('#phone-navigate').click();
    if(target.icon&&target.icon===await page.locator('#workspace-course-name').getAttribute('data-course-id')){await page.locator('#phone-current-icon').click();return false;}
@@ -78,7 +78,7 @@ async function expose(locator){
  for(let i=0;i<count;i++){const d=ancestors.nth(i);if(!await d.evaluate(e=>e.open))await d.locator(':scope>summary').click();}
 }
 async function control(locator,method,...args){await expose(locator);await locator[method](...args);}
-async function click(locator){if(await expose(locator)!==false)await locator.click();}
+async function click(locator){if(await expose(locator)===false)return;const action=await locator.evaluate(e=>!!e.closest('.phone-sheet')&&e.matches('[data-finder-tab],[data-finder-close-tab],[data-finder-history],[data-phone-new],[data-sheet-close]'));await locator.click();if(action)await locator.page().locator('.phone-sheet').waitFor({state:'detached'});}
 async function details(page){for(const cls of ['.outlook-more','.event-more']){const d=page.locator(cls);if(await d.count()&&!await d.evaluate(e=>e.open)){await expose(d.locator(':scope>summary'));await d.locator(':scope>summary').click();}}}
 async function captureInspector(page,path){if(await page.locator('[data-outlook-inspect]').count())await click(page.locator('[data-outlook-inspect]'));else if(!await page.locator('.private-inspector').isVisible())await page.locator('[data-inspector-open]').click();await page.locator('.private-inspector').screenshot({path});}
 async function formSubmit(page,selector){await expose(page.locator(selector));await page.locator(selector).click();await page.evaluate(()=>{window.testPreviewResultFocus=document.activeElement?.id;});await details(page);}

@@ -254,3 +254,16 @@ body:has(#private-home:not([hidden])) .workspace-empty{display:none}
 @media(prefers-reduced-motion:reduce){#phone-course-toggle::after{transition:none}}
 
 @media(max-width:700px){#phone-shell .open-tabs-dialog{bottom:var(--phone-toolbar-height,calc(68px + env(safe-area-inset-bottom)))}}
+
+@media(max-width:700px){
+ .phone-sheet{pointer-events:auto;position:absolute;left:0;right:0;bottom:var(--phone-toolbar-height,68px);max-height:calc(100% - var(--phone-toolbar-height,68px) - 16px);width:100%;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;background:var(--canvas);color:var(--ink);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:0 16px 16px;will-change:transform}
+ .phone-sheet header{display:flex;justify-content:space-between;align-items:center;flex:none}.phone-sheet h2{font-size:1.15rem}.phone-sheet button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:10px;min-height:44px;padding:12px;text-align:left}
+ .phone-sheet .sheet-handle{touch-action:none;align-self:center;width:100%;height:28px;min-height:28px;padding:0;border:0;background:transparent;display:grid;place-items:center}.sheet-handle span{width:38px;height:4px;background:var(--muted);border-radius:4px}
+ .phone-sheet-body{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y;display:flex;flex-direction:column;gap:10px;padding:8px 0}.phone-view-card{display:flex;flex:none;align-items:stretch;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:8px;gap:6px}.phone-view-card.active{border-color:var(--accent)}.phone-view-card [data-finder-tab]{flex:1;min-width:0;overflow-wrap:anywhere}.phone-view-card small{display:block;color:var(--muted);line-height:1.5;margin-top:10px;font-size:.8rem}.phone-view-card [data-dragging],.phone-view-card[data-dragging]{z-index:2;box-shadow:0 8px 25px #0008}.phone-view-card[data-dragging]{user-select:none;-webkit-user-select:none}
+ body:has(.phone-sheet) :is(.private-primary,#private-home,#account-home){overflow:hidden}
+ .phone-sheet :focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+}
+@media(max-width:700px){.phone-sheet header{flex-wrap:wrap;gap:6px}.phone-view-card{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}}
+
+@media(max-width:700px){.phone-sheet header h2{flex:1}.phone-view-history{flex:none;color:var(--muted);font-size:.8rem}.phone-view-history summary{padding:8px;cursor:pointer}.phone-sheet button:disabled{opacity:.4}}
+@media(max-width:700px){.phone-toolbar{z-index:3}.phone-sheet{z-index:2}}

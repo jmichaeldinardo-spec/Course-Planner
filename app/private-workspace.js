@@ -1,3 +1,5 @@
+import {createPhoneSheets} from './phone-sheets.js';
+let phoneSheets;
 import {directoryLessons} from './lesson-directory.js';
 import {createWorkspaceTabs} from './workspace-tabs.js';
 import {renderTabBar,renderLauncher,destinationNames,visibleTabIds} from './workspace-tab-view.js';
@@ -173,7 +175,7 @@ function applyDestination(d){
  inspector={open:false,kind:tab==='lesson-plan'?'lesson':tab==='unit-plan'?'unit':tab==='calendar'?'day':'none',width:inspector.width||360};
  syncDirty();
 }
-function restoreTab({focus=true}={}){
+function restoreTab({focus=true,restoreEditorFocus=true}={}){
  const e=workspaceTabs.current(course.id),cached=tabViews.get(e.id);
  if(cached){
   restoreContext(cached);
@@ -186,7 +188,7 @@ function restoreTab({focus=true}={}){
  }
  else{root.replaceChildren();applyDestination(e.destination);render();const main=root.querySelector('.private-primary');main.scrollTop=0;}
  syncDirty();
- if(cached?.focus?.node?.isConnected&&cached.focus.node.getClientRects().length){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
+ if(restoreEditorFocus&&cached?.focus?.node?.isConnected&&cached.focus.node.getClientRects().length){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
  else if(focus)root.querySelector('.private-primary')?.focus({preventScroll:true});
  if(e.destination.table){const ref=destinationRef(e.destination),draft=workspaceState.draft(ref),op=workspaceState.operation(ref);if(op&&!op.dismissed&&['unknown','unconfirmed'].includes(op.phase))status(op.phase==='unknown'?'Save outcome unknown. Check saved records before discarding local work.':'Write acknowledged; verification incomplete. Retry verification checks saved data only.','error');else if(draft?.error)status('Save failed: '+draft.error,'error');else if(draft)status('Unsaved changes — select Save to store them.','pending');else if(lastStatus.kind==='error'||lastStatus.kind==='pending')status('Saved record loaded.','saved');}
 }
@@ -218,31 +220,29 @@ async function navigateTab(d,{newTab=false}={}){
  if(newTab)workspaceTabs.open(course.id,d);else workspaceTabs.navigate(course.id,d);
  pruneTabViews();showWorkspaceDestination('workspace');restoreTab();return true;
 }
-function selectTab(id){
+function selectTab(id,options){
  if(workspaceState.isSaving()){status('Wait for the current save to finish before changing views.','pending');return false;}
  if(id===workspaceTabs.active(course.id).id)return true;
- stashTab();epoch++;if(!workspaceTabs.select(course.id,id))return false;restoreTab();return true;
+ stashTab();epoch++;if(!workspaceTabs.select(course.id,id))return false;restoreTab(options);return true;
 }
-async function closeTab(id){
+async function closeTab(id,options){
  const t=workspaceTabs.list(course.id).find(t=>t.id===id);if(!t||!await leaveView(t))return false;
- stashTab();for(const e of t.history)tabViews.delete(e.id);epoch++;workspaceTabs.close(course.id,id);restoreTab();return true;
+ stashTab();for(const e of t.history)tabViews.delete(e.id);epoch++;workspaceTabs.close(course.id,id);restoreTab(options);return true;
 }
-async function travelTab(step){
+async function travelTab(step,options){
  const t=workspaceTabs.active(course.id);if(t.index+step<0||t.index+step>=t.history.length||!await leaveView(t))return false;
- stashTab();epoch++;workspaceTabs.travel(course.id,step);restoreTab();return true;
+ stashTab();epoch++;workspaceTabs.travel(course.id,step);restoreTab(options);return true;
 }
 function openTabFinder(){
- const phone=matchMedia('(max-width:700px)').matches,existing=document.querySelector('.open-tabs-dialog');
- if(phone&&existing){existing.dispatchEvent(new Event('cancel',{cancelable:true}));return;}
+ if(matchMedia('(max-width:700px)').matches){phoneSheets.open('views');return;}
  const dialog=document.createElement('dialog');dialog.className='workspace-settings open-tabs-dialog';dialog.setAttribute('aria-labelledby','open-tabs-title');
  dialog.innerHTML='<div class="settings-heading"><h2 id="open-tabs-title">Open Tabs</h2><button type="button" data-finder-close>Close</button></div><p>All open views in this course. Select a view to bring it into the tab strip.</p><label>Find an open view<input type="search" data-finder-search placeholder="Title, unit or view type"></label><div data-finder-results></div>';
- if(phone){dialog.setAttribute('role','group');dialog.querySelector('h2').textContent='Open Views';dialog.querySelector('p').textContent='Select an open view. Unsaved work stays with its record.';const active=workspaceTabs.active(course.id),history=document.createElement('div');history.innerHTML=`<button type="button" data-finder-history="-1" ${active.index===0?'disabled':''}>Back in view</button><button type="button" data-finder-history="1" ${active.index===active.history.length-1?'disabled':''}>Forward in view</button>`;dialog.querySelector('p').after(history);}
  const draw=()=>{const query=dialog.querySelector('input').value.toLocaleLowerCase(),list=workspaceTabs.list(course.id).filter(t=>tabLabel(t).search.toLocaleLowerCase().includes(query));dialog.querySelector('[data-finder-results]').innerHTML=list.map(t=>`<div class="finder-row"><button type="button" data-finder-tab="${t.id}">${escapeHtml(tabLabel(t).label)}${tabLabel(t).dirty?' · Unsaved edits':''}</button><button type="button" data-finder-close-tab="${t.id}" aria-label="Close ${escapeHtml(tabLabel(t).label)}">×</button></div>`).join('')||'<p>No matching open tabs in this course.</p>';};
- const close=()=>{dialog.close();dialog.remove();if(phone)window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:null}));(matchMedia('(max-width:700px)').matches?document.querySelector('#phone-views'):root.querySelector('[data-tab-finder]'))?.focus({preventScroll:true});};
+ const close=()=>{dialog.close();dialog.remove();root.querySelector('[data-tab-finder]')?.focus({preventScroll:true});};
  dialog.addEventListener('input',draw);dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
- dialog.addEventListener('click',e=>{const b=e.target.closest('button');if(b?.hasAttribute('data-finder-close'))close();else if(b?.dataset.finderHistory){const step=Number(b.dataset.finderHistory);close();void travelTab(step).then(ok=>{if(phone&&ok)showWorkspaceDestination('workspace');});}else if(b?.dataset.finderCloseTab){const id=b.dataset.finderCloseTab;close();void closeTab(id);}else if(b?.dataset.finderTab){const id=b.dataset.finderTab;close();const selected=selectTab(id);if(phone&&selected)showWorkspaceDestination('workspace');(matchMedia('(max-width:700px)').matches?root.querySelector('.private-primary'):root.querySelector('[aria-selected="true"]'))?.focus({preventScroll:true});}});
+ dialog.addEventListener('click',e=>{const b=e.target.closest('button');if(b?.hasAttribute('data-finder-close'))close();else if(b?.dataset.finderCloseTab){const id=b.dataset.finderCloseTab;close();void closeTab(id);}else if(b?.dataset.finderTab){const id=b.dataset.finderTab;close();selectTab(id);root.querySelector('[aria-selected="true"]')?.focus({preventScroll:true});}});
  dialog.addEventListener('keydown',e=>{if(!['ArrowDown','ArrowUp'].includes(e.key))return;e.preventDefault();const buttons=[...dialog.querySelectorAll('[data-finder-tab]')],i=buttons.indexOf(document.activeElement);buttons[(i+(e.key==='ArrowDown'?1:buttons.length-1)+buttons.length)%buttons.length]?.focus();});
- document.body.append(dialog);draw();if(phone){window.dispatchEvent(new CustomEvent('phone-views-panel',{detail:dialog}));dialog.show();}else dialog.showModal();dialog.querySelector('input').focus();
+ document.body.append(dialog);draw();dialog.showModal();dialog.querySelector('input').focus();
 }
 function renderLessonDirectory(){
  return `<section class="lesson-directory"><label>Unit<select data-lesson-unit><option value="">All Units</option>${units.map(u=>`<option value="${escapeHtml(u.id)}" ${directoryUnit===u.id?'selected':''}>${escapeHtml(u.title)}${u.archived_at?' (Archived)':''}</option>`).join('')}</select></label><label>Find a lesson<input type="search" data-lesson-search value="${escapeHtml(directoryQuery)}" placeholder="Search titles, units or status"></label><div data-lesson-directory-results>${renderLessonResults()}</div></section>`;
@@ -294,7 +294,7 @@ function restoreContext(context){
  for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
 }
 root.addEventListener('focusout',e=>{if(!e.target.matches?.('input,textarea,select'))return;const main=root.querySelector('.private-primary');if(main)editorFocus.set(main,{node:e.target,start:e.target.selectionStart??null,end:e.target.selectionEnd??null});});
-function reset(){tabResizeObserver?.disconnect();tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){phoneSheets?.reset();tabResizeObserver?.disconnect();tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceBusy(){return workspaceState.isSaving();}
@@ -710,4 +710,10 @@ window.addEventListener('workspace-destination',()=>{if(course){navigation.trans
 window.addEventListener('resize',()=>{if(course)syncInspectorModality();});
 window.addEventListener("beforeunload",event=>{if(isPrivateWorkspaceDirty()){event.preventDefault();event.returnValue="";}});
 
-window.addEventListener('phone-workspace-action',e=>{if(!course)return;if(e.detail?.kind==='summary'){void navigateTab({kind:'overview'},{newTab:e.detail.newTab});return;}if(e.detail==='views')openTabFinder();else if(e.detail==='new'){document.querySelector('.open-tabs-dialog')?.dispatchEvent(new Event('cancel',{cancelable:true}));void navigateTab({kind:'new'},{newTab:true});}});
+phoneSheets=createPhoneSheets({context:()=>{
+ if(!course||!owner)return null;
+ const token=workspaceState.reference(course.id,'units',units[0]?.id||'phone-context');
+ const current=()=>workspaceState.isCurrent(token)&&course?.id===token.courseId;
+ return {current,back:workspaceTabs.active(course.id).index>0,forward:workspaceTabs.active(course.id).index<workspaceTabs.active(course.id).history.length-1,travel:async step=>{if(current()&&await travelTab(step,{restoreEditorFocus:false}))showWorkspaceDestination('workspace');},views:()=>workspaceTabs.list(course.id).map(t=>{const label=tabLabel(t),ref=referenceForTab(t),row=ref?workspaceState.editing(ref):null;return {id:t.id,label:label.label,dirty:label.dirty,active:t.id===workspaceTabs.active(course.id).id,preview:String(row?.objective||row?.essential_questions||destinationNames[t.history[t.index].destination.kind]||'Planning view').slice(0,240)};}),select:id=>{if(current()&&selectTab(id,{restoreEditorFocus:false})){showWorkspaceDestination('workspace');root.querySelector('.private-primary')?.focus({preventScroll:true});}},close:id=>current()&&closeTab(id,{restoreEditorFocus:false}),open:kind=>current()&&navigateTab({kind},{newTab:true}),move:(id,index)=>{if(!current()||workspaceState.isSaving())return false;const moved=workspaceTabs.move(course.id,id,index);if(moved)renderTabs();return moved;}};
+}});
+window.addEventListener('phone-workspace-action',e=>{if(!course)return;if(e.detail?.kind==='summary'){void navigateTab({kind:'overview'},{newTab:e.detail.newTab});return;}if(e.detail==='views'||e.detail==='new')phoneSheets.open(e.detail);});

@@ -59,3 +59,25 @@ a transition-time capture; settled baseline geometry showed it fully hidden.
 Closing Navigate now collapses its course dropdown, including Escape, same-button,
 swipe and navigation closures. The selector has a subtle expanded-state chevron.
 Open Views is anchored above the measured toolbar height, avoiding fractional-pixel overlap from a fixed bottom offset.
+
+## Owner-authorized phone sheet architecture correction
+
+Real iPhone acceptance rejected the desktop finder/input and launcher reuse. Phone
+Views and New now use a separate sheet presenter. Desktop keeps its original
+finder. Sheets initially focus their pull handle, contain no search input, have
+one list scroller and lock the background through animated dismissal. The handle
+tracks downward pointer motion, snaps back below threshold and animates offscreen
+above threshold. Native normal list swipes do not initiate reordering.
+
+Views cards derive titles, previews, dirty/active state and IDs from workspace
+state. Touch long-press (420ms) activates direct-card dragging with sibling motion;
+Alt+Up/Down supplies an announced keyboard alternative. The existing tab store's
+move operation retains view objects, selection and histories. Opening New creates
+nothing; choosing a destination uses guarded navigation. No record/store copy,
+autosave, unrelated Search/More feature or Auth/configuration change is added.
+Animation waits and rendered geometry are tested in Chromium emulation. iPhone
+Safari browser chrome, keyboard dismissal, scrolling/rubber-banding, long-list
+edge dragging and VoiceOver still require real-device owner acceptance. Earlier
+Phase 1 deferrals concerning these specific sheet/reorder interactions are now
+superseded by this owner's explicit correction request; other deferrals stand.
+The toolbar has an explicit higher stacking layer than sheets, so a downward pull passes beneath its fixed boundary rather than covering its controls.
