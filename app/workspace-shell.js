@@ -1,3 +1,4 @@
+import {initializePhoneShell} from './mobile-shell.js';
 import {refreshDashboardCourse} from './dashboard.js';
 import {readCourseSummary,summaryLabel} from './course-summary.js';
 // All presentation/context in this milestone is page-memory only, never Auth settings.
@@ -11,7 +12,7 @@ function navigationState(){const b=byId('sidebar-collapse');if(!b)return;const e
 function syncDestination(){
  document.body.dataset.destination=destination;
  const home=byId('private-home');if(home)home.hidden=!accountId||destination!=='home';
- byId('workspace-navigation')?.querySelectorAll('button').forEach(b=>{const active=b.hasAttribute('data-global-home')?destination==='home':destination==='workspace'&&b.dataset.privateTab===currentTab;b.disabled=b.hasAttribute('data-global-home')?!accountId:!currentCourse;b.setAttribute('aria-pressed',String(active));if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+ document.querySelector('.teacher-sidebar')?.querySelectorAll('#workspace-navigation button,.sidebar-destination button').forEach(b=>{const active=b.hasAttribute('data-global-home')?destination==='home':destination==='workspace'&&b.dataset.privateTab===currentTab;b.disabled=b.hasAttribute('data-global-home')?!accountId:!currentCourse;b.setAttribute('aria-pressed',String(active));if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  document.querySelectorAll('[data-resume-workspace]').forEach(b=>b.hidden=!currentCourse);
  document.querySelectorAll('[data-create-course]').forEach(b=>b.disabled=!accountId);
  document.body.classList.remove('mobile-nav-open');navigationState();
@@ -76,3 +77,5 @@ if(typeof document!=='undefined'){
  const picker=document.createElement('dialog');picker.className='workspace-settings';picker.setAttribute('aria-label','Course icon');document.body.append(picker);
  byId('saved-courses')?.addEventListener('click',e=>{const edit=e.target.closest('[data-course-icon]');if(!edit)return;const id=edit.dataset.courseIcon;picker.replaceChildren();const title=document.createElement('h2');title.textContent='Course icon';const note=document.createElement('p');note.textContent='Applies for this session. Saved course records and course color stay unchanged.';picker.append(title,note);for(const [i,icon] of icons.entries()){const b=document.createElement('button');b.type='button';b.textContent=icon;b.setAttribute('aria-label','Choose icon '+(i+1));b.addEventListener('click',()=>{courseIcons.set(id,icon);picker.close();renderCourseEntries();document.querySelector('[data-course-icon="'+id+'"]')?.focus({preventScroll:true});});picker.append(b);}const close=document.createElement('button');close.textContent='Cancel';close.addEventListener('click',()=>picker.close());picker.append(close);picker.showModal();});
 }
+
+if(typeof document!=='undefined')initializePhoneShell();

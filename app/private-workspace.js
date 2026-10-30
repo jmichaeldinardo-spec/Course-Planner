@@ -1,3 +1,5 @@
+import {createPhoneSheets} from './phone-sheets.js';
+let phoneSheets;
 import {directoryLessons} from './lesson-directory.js';
 import {createWorkspaceTabs} from './workspace-tabs.js';
 import {renderTabBar,renderLauncher,destinationNames,visibleTabIds} from './workspace-tab-view.js';
@@ -163,6 +165,7 @@ function renderTabs(){
  const finder=host.querySelector('[data-tab-finder]'),hidden=tabs.length-shown.size;
  finder.setAttribute('aria-label',`Find Open Tabs: ${tabs.length} total, ${hidden} outside strip`);finder.title=`${hidden} tabs outside strip — find all open tabs`;finder.innerHTML='<span>Open Tabs</span> '+(hidden?'+'+hidden:'⌄');
  if(touch){finder.setAttribute('aria-label',`Find Open Tabs: ${tabs.length} total`);finder.title='Find all open tabs, or swipe the tab strip';}
+ window.dispatchEvent(new CustomEvent('phone-view-count',{detail:{courseId:course.id,count:tabs.length}}));
 }
 function pruneTabViews(){const ids=new Set(workspaceTabs.entries(course.id).map(e=>e.id));for(const [id,ctx] of tabViews)if(ctx.state.courseId===course.id&&!ids.has(id))tabViews.delete(id);}
 function stashTab(){if(course&&root.querySelector?.('.private-primary'))tabViews.set(workspaceTabs.current(course.id).id,captureContext());}
@@ -173,7 +176,7 @@ function applyDestination(d){
  inspector={open:false,kind:tab==='lesson-plan'?'lesson':tab==='unit-plan'?'unit':tab==='calendar'?'day':'none',width:inspector.width||360};
  syncDirty();
 }
-function restoreTab({focus=true}={}){
+function restoreTab({focus=true,restoreEditorFocus=true}={}){
  const e=workspaceTabs.current(course.id),cached=tabViews.get(e.id);
  if(cached){
   restoreContext(cached);
@@ -186,7 +189,7 @@ function restoreTab({focus=true}={}){
  }
  else{root.replaceChildren();applyDestination(e.destination);render();const main=root.querySelector('.private-primary');main.scrollTop=0;}
  syncDirty();
- if(cached?.focus?.node?.isConnected&&cached.focus.node.getClientRects().length){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
+ if(restoreEditorFocus&&cached?.focus?.node?.isConnected&&cached.focus.node.getClientRects().length){try{cached.focus.node.focus({preventScroll:true});if(cached.focus.start!==null)cached.focus.node.setSelectionRange?.(cached.focus.start,cached.focus.end);}catch{}}
  else if(focus)root.querySelector('.private-primary')?.focus({preventScroll:true});
  if(e.destination.table){const ref=destinationRef(e.destination),draft=workspaceState.draft(ref),op=workspaceState.operation(ref);if(op&&!op.dismissed&&['unknown','unconfirmed'].includes(op.phase))status(op.phase==='unknown'?'Save outcome unknown. Check saved records before discarding local work.':'Write acknowledged; verification incomplete. Retry verification checks saved data only.','error');else if(draft?.error)status('Save failed: '+draft.error,'error');else if(draft)status('Unsaved changes — select Save to store them.','pending');else if(lastStatus.kind==='error'||lastStatus.kind==='pending')status('Saved record loaded.','saved');}
 }
@@ -218,20 +221,21 @@ async function navigateTab(d,{newTab=false}={}){
  if(newTab)workspaceTabs.open(course.id,d);else workspaceTabs.navigate(course.id,d);
  pruneTabViews();showWorkspaceDestination('workspace');restoreTab();return true;
 }
-function selectTab(id){
+function selectTab(id,options){
  if(workspaceState.isSaving()){status('Wait for the current save to finish before changing views.','pending');return false;}
  if(id===workspaceTabs.active(course.id).id)return true;
- stashTab();epoch++;if(!workspaceTabs.select(course.id,id))return false;restoreTab();return true;
+ stashTab();epoch++;if(!workspaceTabs.select(course.id,id))return false;restoreTab(options);return true;
 }
-async function closeTab(id){
+async function closeTab(id,options){
  const t=workspaceTabs.list(course.id).find(t=>t.id===id);if(!t||!await leaveView(t))return false;
- stashTab();for(const e of t.history)tabViews.delete(e.id);epoch++;workspaceTabs.close(course.id,id);restoreTab();return true;
+ stashTab();for(const e of t.history)tabViews.delete(e.id);epoch++;workspaceTabs.close(course.id,id);restoreTab(options);return true;
 }
-async function travelTab(step){
+async function travelTab(step,options){
  const t=workspaceTabs.active(course.id);if(t.index+step<0||t.index+step>=t.history.length||!await leaveView(t))return false;
- stashTab();epoch++;workspaceTabs.travel(course.id,step);restoreTab();return true;
+ stashTab();epoch++;workspaceTabs.travel(course.id,step);restoreTab(options);return true;
 }
 function openTabFinder(){
+ if(matchMedia('(max-width:700px)').matches){phoneSheets.open('views');return;}
  const dialog=document.createElement('dialog');dialog.className='workspace-settings open-tabs-dialog';dialog.setAttribute('aria-labelledby','open-tabs-title');
  dialog.innerHTML='<div class="settings-heading"><h2 id="open-tabs-title">Open Tabs</h2><button type="button" data-finder-close>Close</button></div><p>All open views in this course. Select a view to bring it into the tab strip.</p><label>Find an open view<input type="search" data-finder-search placeholder="Title, unit or view type"></label><div data-finder-results></div>';
  const draw=()=>{const query=dialog.querySelector('input').value.toLocaleLowerCase(),list=workspaceTabs.list(course.id).filter(t=>tabLabel(t).search.toLocaleLowerCase().includes(query));dialog.querySelector('[data-finder-results]').innerHTML=list.map(t=>`<div class="finder-row"><button type="button" data-finder-tab="${t.id}">${escapeHtml(tabLabel(t).label)}${tabLabel(t).dirty?' · Unsaved edits':''}</button><button type="button" data-finder-close-tab="${t.id}" aria-label="Close ${escapeHtml(tabLabel(t).label)}">×</button></div>`).join('')||'<p>No matching open tabs in this course.</p>';};
@@ -291,7 +295,7 @@ function restoreContext(context){
  for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
 }
 root.addEventListener('focusout',e=>{if(!e.target.matches?.('input,textarea,select'))return;const main=root.querySelector('.private-primary');if(main)editorFocus.set(main,{node:e.target,start:e.target.selectionStart??null,end:e.target.selectionEnd??null});});
-function reset(){tabResizeObserver?.disconnect();tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){phoneSheets?.reset();tabResizeObserver?.disconnect();tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();window.dispatchEvent(new CustomEvent('phone-view-count',{detail:{courseId:null,count:null}}));}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceBusy(){return workspaceState.isSaving();}
@@ -706,3 +710,11 @@ root.addEventListener("submit",async e=>{
 window.addEventListener('workspace-destination',()=>{if(course){navigation.transition({kind:document.body?.dataset.destination==='home'?'home':'resume',courseId:course.id});syncInspectorModality();publishContinueContext();}});
 window.addEventListener('resize',()=>{if(course)syncInspectorModality();});
 window.addEventListener("beforeunload",event=>{if(isPrivateWorkspaceDirty()){event.preventDefault();event.returnValue="";}});
+
+phoneSheets=createPhoneSheets({context:()=>{
+ if(!course||!owner)return null;
+ const token=workspaceState.reference(course.id,'units',units[0]?.id||'phone-context');
+ const current=()=>workspaceState.isCurrent(token)&&course?.id===token.courseId;
+ return {current,back:workspaceTabs.active(course.id).index>0,forward:workspaceTabs.active(course.id).index<workspaceTabs.active(course.id).history.length-1,travel:async step=>{if(current()&&await travelTab(step,{restoreEditorFocus:false}))showWorkspaceDestination('workspace');},views:()=>workspaceTabs.list(course.id).map(t=>{const label=tabLabel(t),ref=referenceForTab(t),row=ref?workspaceState.editing(ref):null;return {id:t.id,label:label.label,dirty:label.dirty,active:t.id===workspaceTabs.active(course.id).id,preview:String(row?.objective||row?.essential_questions||destinationNames[t.history[t.index].destination.kind]||'Planning view').slice(0,240)};}),select:id=>{if(current()&&selectTab(id,{restoreEditorFocus:false})){showWorkspaceDestination('workspace');root.querySelector('.private-primary')?.focus({preventScroll:true});}},close:id=>current()&&closeTab(id,{restoreEditorFocus:false}),open:kind=>current()&&navigateTab({kind},{newTab:true}),move:(id,index)=>{if(!current()||workspaceState.isSaving())return false;const moved=workspaceTabs.move(course.id,id,index);if(moved)renderTabs();return moved;}};
+}});
+window.addEventListener('phone-workspace-action',e=>{if(!course)return;if(e.detail?.kind==='summary'){void navigateTab({kind:'overview'},{newTab:e.detail.newTab});return;}if(e.detail==='views'||e.detail==='new')phoneSheets.open(e.detail);});

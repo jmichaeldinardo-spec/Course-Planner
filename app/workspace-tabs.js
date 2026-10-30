@@ -21,6 +21,7 @@ export function createWorkspaceTabs(){
   list:courseId=>ensure(courseId).tabs,
   newDraftId:()=>uid('draft'),
   open(courseId,destination={kind:'new'}){valid(courseId,destination);const c=ensure(courseId),tab={id:uid('view'),history:[entry(destination)],index:0};c.tabs.push(tab);c.selected=tab.id;return tab;},
+  move(courseId,id,index){const c=ensure(courseId),from=c.tabs.findIndex(t=>t.id===id);if(from<0||!Number.isInteger(index)||index<0||index>=c.tabs.length)return false;const [tab]=c.tabs.splice(from,1);c.tabs.splice(index,0,tab);return true;},
   select(courseId,id){const c=ensure(courseId);if(!c.tabs.some(t=>t.id===id))return false;c.selected=id;return true;},
   navigate(courseId,destination){valid(courseId,destination);const tab=active(courseId);if(JSON.stringify(current(tab).destination)===JSON.stringify(destination))return current(tab);tab.history.splice(tab.index+1);tab.history.push(entry(destination));if(tab.history.length>50)tab.history.shift();tab.index=tab.history.length-1;return current(tab);},
   travel(courseId,step){const tab=active(courseId),index=tab.index+step;if(index<0||index>=tab.history.length)return false;tab.index=index;return true;},

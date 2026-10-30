@@ -23,7 +23,7 @@ export async function verifyManualSave(page,width,fixture,{check,click,control,o
  const unchangedWrites=before=>page.evaluate(before=>window.testWrites.length===before,before);
  const writes=()=>page.evaluate(()=>window.testWrites.length);
  const reload=async()=>{const accept=d=>d.accept();page.on('dialog',accept);try{await click(page.locator('[data-private-reload]'));await page.waitForFunction(()=>document.querySelector('#private-status')?.textContent==='Loaded from private cloud storage.');}finally{page.off('dialog',accept);}};
- await page.locator('#saved-courses [data-private-open]').first().waitFor();await open();
+ await page.locator('#saved-courses [data-private-open]').first().waitFor({state:'attached'});await open();
  check(prefix+' initial status is honest manual idle',await page.locator('#manual-save-message').textContent()==='Manual Save · No pending edits');
  check(prefix+' feedback font is restrained and readable',await page.locator('#manual-save-message').evaluate(e=>{const size=parseFloat(getComputedStyle(e).fontSize);return size>=13&&size<=14;}));
  await control(field(),'fill','Submitted before verification');await hold();await save();await held();await phase('verifying');
@@ -48,7 +48,7 @@ export async function verifyManualSave(page,width,fixture,{check,click,control,o
  check(prefix+' incomplete verification is not described as a failed write',await page.locator('#manual-save-message').textContent()==='Write received · Unverified'&&(await page.locator('#private-status').textContent()).startsWith('Write acknowledged; verification incomplete.')&&!(await page.locator('#private-status').textContent()).includes('Save failed:'));
  check(prefix+' explanation and Retry fit the visible header',await page.locator('#manual-save-status').evaluate(e=>[e.querySelector('span'),e.querySelector('button')].every(n=>{const r=n.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.top>=0&&r.bottom<=59&&r.left>=0&&r.right<=innerWidth&&(hit===n||n.contains(hit));})));
  check(prefix+' unconfirmed receipt triggers unload warning without a draft',await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}));
- await click(page.locator('[data-workspace-settings]'));page.once('dialog',d=>d.dismiss());await page.locator('#auth-signout').click();
+ await click(page.locator('[data-workspace-settings]'));page.once('dialog',d=>d.dismiss());await click(page.locator('#auth-signout'));
  check(prefix+' unconfirmed receipt guards sign-out',await page.locator('#workspace-settings').evaluate(e=>e.open)&&await page.locator('#auth-signout').isVisible());await click(page.locator('[data-settings-close]'));
  await click(page.locator('[data-private-export]'));check(prefix+' unconfirmed save blocks saved-only export',(await page.locator('#private-status').textContent()).includes('Save or discard'));
  await page.evaluate(()=>window.testReadbackFail=false);await click(page.locator('#manual-save-retry'));await phase('verified');
@@ -108,7 +108,7 @@ export async function verifyManualSave(page,width,fixture,{check,click,control,o
  // Same account, new generation: an old verification cannot release a new write.
  await control(field(),'fill','Old session submission');await hold();await save();await held();
  await page.evaluate(()=>{window.oldReadbackRelease=window.testReleaseReadback;window.testSignedOut=true;window.testAuthEvent('SIGNED_OUT');});await page.locator('#auth-form').waitFor({state:'visible'});
- await page.evaluate(()=>{window.testSignedOut=false;window.testAuthEvent('SIGNED_IN');});await page.locator('#saved-courses [data-private-open]').first().waitFor();await open();
+ await page.evaluate(()=>{window.testSignedOut=false;window.testAuthEvent('SIGNED_IN');});await page.locator('#saved-courses [data-private-open]').first().waitFor({state:'attached'});await open();
  await control(field(),'fill','New session submission');await page.evaluate(()=>{window.testHoldWrites=true;delete window.testReleaseWrite;});await save();await page.waitForFunction(()=>!!window.testReleaseWrite);
  await page.evaluate(()=>window.oldReadbackRelease());await phase('writing');
  check(prefix+' stale verification cannot release new-session busy state',await field().inputValue()==='New session submission'&&await page.evaluate(async()=>(await import('./private-workspace.js')).isPrivateWorkspaceBusy()));
