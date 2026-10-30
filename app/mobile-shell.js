@@ -5,8 +5,15 @@ export function initializePhoneShell(){
  const legacy=document.querySelector('.legacy-demonstration'),legacyAnchor=document.createComment('desktop illustration');legacy.before(legacyAnchor);
  const phone=matchMedia(phoneQuery),sidebar=document.querySelector('.teacher-sidebar'),anchor=document.createComment('desktop navigation');sidebar.before(anchor);
  const shell=document.createElement('section');shell.id='phone-shell';shell.setAttribute('aria-label','Mobile workspace');
- shell.innerHTML='<button class="phone-backdrop" aria-label="Close Navigate" hidden></button><nav class="phone-toolbar" aria-label="Workspace controls"><button type="button" id="phone-navigate" aria-controls="phone-navigation" aria-expanded="false">☰<span>Navigate</span></button><button type="button" id="phone-new" aria-haspopup="dialog" aria-expanded="false">＋<span>New View</span></button><button type="button" id="phone-views" aria-haspopup="dialog" aria-expanded="false">▣<span>Open Views</span></button></nav>';
+ shell.innerHTML='<button class="phone-backdrop" aria-label="Close Navigate" hidden></button><nav class="phone-toolbar" aria-label="Workspace controls"><button type="button" id="phone-navigate" aria-controls="phone-navigation" aria-expanded="false">☰<span>Navigate</span></button><button type="button" id="phone-new" aria-haspopup="dialog" aria-expanded="false">＋<span>New View</span></button><button type="button" id="phone-views" aria-haspopup="dialog" aria-expanded="false">▣<small class="phone-view-count" aria-hidden="true"></small><span>Open Views</span></button></nav>';
  document.body.append(shell);const toggle=shell.querySelector('#phone-navigate'),backdrop=shell.querySelector('.phone-backdrop'),workspace=document.querySelector('.teacher-workspace'),header=document.querySelector('.pilot-header');
+ // The authoritative course tab store publishes its count; the phone shell only displays it.
+ const countNode=shell.querySelector('.phone-view-count'),viewsButton=shell.querySelector('#phone-views');
+ window.addEventListener('phone-view-count',e=>{
+  const count=e.detail?.count,valid=Number.isInteger(count)&&count>=0;
+  countNode.textContent=valid?String(count):'';
+  viewsButton.setAttribute('aria-label',valid?`Open Views, ${count} open ${count===1?'view':'views'}`:'Open Views');
+ });
  const selector=document.createElement('section');selector.className='phone-courses';selector.innerHTML='<p>Current course</p><button type="button" id="phone-course-toggle" aria-expanded="false" aria-controls="phone-course-options">Choose a course</button><div id="phone-course-options" hidden><p id="phone-course-empty">No other courses.</p></div><button type="button" id="phone-continue">Continue planning</button><button type="button" id="phone-current-icon">Change current course icon</button>';
  const list=document.querySelector('#saved-courses'),listAnchor=document.createComment('desktop courses');list.before(listAnchor);
  const home=sidebar.querySelector('[data-global-home]'),summary=sidebar.querySelector('[data-private-tab=overview]'),summaryRow=summary.closest('.sidebar-destination'),summaryAnchor=document.createComment('desktop overview');summaryRow.before(summaryAnchor);
