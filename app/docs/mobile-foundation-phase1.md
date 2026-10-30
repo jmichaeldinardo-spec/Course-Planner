@@ -50,3 +50,12 @@ The existing Overview row moves into the Current course section as Course summar
 using the same guarded navigation/new-view paths and selection authority. It is
 not a second Home. Home and summary selection remain mutually exclusive. Desktop
 labels, row placement and behavior are restored unchanged at the breakpoint.
+
+## Overlay capture and selector reset
+
+Phone review captures await actual drawer entrance/exit bounds and a fully visible,
+unobscured Open Views panel above the toolbar. The prior partial drawer image was
+a transition-time capture; settled baseline geometry showed it fully hidden.
+Closing Navigate now collapses its course dropdown, including Escape, same-button,
+swipe and navigation closures. The selector has a subtle expanded-state chevron.
+Open Views is anchored above the measured toolbar height, avoiding fractional-pixel overlap from a fixed bottom offset.

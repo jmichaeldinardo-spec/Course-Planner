@@ -244,3 +244,13 @@ body:has(#private-home:not([hidden])) .workspace-empty{display:none}
 }
 
 @media(max-width:700px){#phone-shell{z-index:40}}
+
+/* A visual disclosure cue; its state follows the real current-course button. */
+@media(max-width:700px){
+ #phone-course-toggle{position:relative;padding-right:36px}
+ #phone-course-toggle::after{content:'';position:absolute;right:16px;top:calc(50% - 5px);width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;opacity:.65;transform:rotate(45deg);transition:transform .18s ease}
+ #phone-course-toggle[aria-expanded=true]::after{transform:rotate(225deg);top:calc(50% - 1px)}
+}
+@media(prefers-reduced-motion:reduce){#phone-course-toggle::after{transition:none}}
+
+@media(max-width:700px){#phone-shell .open-tabs-dialog{bottom:var(--phone-toolbar-height,calc(68px + env(safe-area-inset-bottom)))}}
