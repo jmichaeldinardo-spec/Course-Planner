@@ -267,3 +267,6 @@ body:has(#private-home:not([hidden])) .workspace-empty{display:none}
 
 @media(max-width:700px){.phone-sheet header h2{flex:1}.phone-view-history{flex:none;color:var(--muted);font-size:.8rem}.phone-view-history summary{padding:8px;cursor:pointer}.phone-sheet button:disabled{opacity:.4}}
 @media(max-width:700px){.phone-toolbar{z-index:3}.phone-sheet{z-index:2}}
+
+@media(max-width:700px){.phone-reorder-hint{font-size:.8rem;color:var(--muted);margin:0 0 8px;flex:none}.phone-view-card{position:relative}}
+@media(max-width:700px){.phone-sheet-body{position:relative;overflow-anchor:none}}

@@ -81,3 +81,15 @@ edge dragging and VoiceOver still require real-device owner acceptance. Earlier
 Phase 1 deferrals concerning these specific sheet/reorder interactions are now
 superseded by this owner's explicit correction request; other deferrals stand.
 The toolbar has an explicit higher stacking layer than sheets, so a downward pull passes beneath its fixed boundary rather than covering its controls.
+
+## DEC-109 / OPS-085 follow-up
+
+Open Views scrolls only its list during an active card drag near a vertical edge.
+A frame loop uses elapsed time and stable layout geometry; release, cancellation,
+sheet reset and leaving the edge stop scrolling. Drag sorting commits to the same
+live per-course tab store used on desktop, with no persistence or synchronization.
+Guarded card closes keep the sheet open, redraw remaining cards, retain list scroll
+and place focus on the adjacent close control. Cancel and failed saves retain the
+view. Closing a view never deletes its curriculum record. A restrained caption
+explains full-card long-press dragging; no grip or unrelated UI is introduced.
+Physical iPhone Safari acceptance remains required.
