@@ -165,6 +165,7 @@ function renderTabs(){
  const finder=host.querySelector('[data-tab-finder]'),hidden=tabs.length-shown.size;
  finder.setAttribute('aria-label',`Find Open Tabs: ${tabs.length} total, ${hidden} outside strip`);finder.title=`${hidden} tabs outside strip — find all open tabs`;finder.innerHTML='<span>Open Tabs</span> '+(hidden?'+'+hidden:'⌄');
  if(touch){finder.setAttribute('aria-label',`Find Open Tabs: ${tabs.length} total`);finder.title='Find all open tabs, or swipe the tab strip';}
+ window.dispatchEvent(new CustomEvent('phone-view-count',{detail:{courseId:course.id,count:tabs.length}}));
 }
 function pruneTabViews(){const ids=new Set(workspaceTabs.entries(course.id).map(e=>e.id));for(const [id,ctx] of tabViews)if(ctx.state.courseId===course.id&&!ids.has(id))tabViews.delete(id);}
 function stashTab(){if(course&&root.querySelector?.('.private-primary'))tabViews.set(workspaceTabs.current(course.id).id,captureContext());}
@@ -294,7 +295,7 @@ function restoreContext(context){
  for(const [node,top,left] of context.scroll){node.scrollTop=top;node.scrollLeft=left;}
 }
 root.addEventListener('focusout',e=>{if(!e.target.matches?.('input,textarea,select'))return;const main=root.querySelector('.private-primary');if(main)editorFocus.set(main,{node:e.target,start:e.target.selectionStart??null,end:e.target.selectionEnd??null});});
-function reset(){phoneSheets?.reset();tabResizeObserver?.disconnect();tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();}
+function reset(){phoneSheets?.reset();tabResizeObserver?.disconnect();tab='sequence';selectedUnit=null;selectedLesson=null;directoryQuery='';directoryUnit='';workspaceTabs.setAccount(null);tabViews.clear();document.querySelector?.('.unsaved-navigation')?.close();document.querySelector?.('.unsaved-navigation')?.remove();document.querySelector?.('.open-tabs-dialog')?.remove();workspaceState.setAccount(null);navigation.reset();dashboardNavigation++;courseContexts.clear();syncWorkspaceShell(null,null);inspector={open:false,kind:"none",width:360};buildReturnView=null;sampleSession=null;epoch++;editEpoch++;api=null;owner=null;course=null;units=[];lessons=[];exceptions=[];calendarState=null;eventDraft=null;eventPreview=null;outlookState=newOutlookState();dirty=false;root.hidden=true;root.replaceChildren();window.dispatchEvent(new CustomEvent('phone-view-count',{detail:{courseId:null,count:null}}));}
 export function clearPrivateWorkspace(){reset();}
 export function activePrivateCourseId(){return course?.id??null;}
 export function isPrivateWorkspaceBusy(){return workspaceState.isSaving();}
